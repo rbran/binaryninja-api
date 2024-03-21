@@ -190,7 +190,7 @@ pub trait RegisterInfo: Sized {
     fn implicit_extend(&self) -> ImplicitRegisterExtend;
 }
 
-pub trait Register: Sized + Clone + Copy {
+pub trait Register: Sized + Clone {
     type InfoType: RegisterInfo<RegType = Self>;
 
     fn name(&self) -> Cow<str>;
@@ -212,7 +212,7 @@ pub trait RegisterStackInfo: Sized {
     fn stack_top_reg(&self) -> Self::RegType;
 }
 
-pub trait RegisterStack: Sized + Clone + Copy {
+pub trait RegisterStack: Sized + Clone {
     type InfoType: RegisterStackInfo<
         RegType = Self::RegType,
         RegInfoType = Self::RegInfoType,
@@ -306,7 +306,7 @@ pub trait FlagGroup: Sized + Clone + Copy {
     fn flag_conditions(&self) -> HashMap<Self::FlagClass, FlagCondition>;
 }
 
-pub trait Intrinsic: Sized + Clone + Copy {
+pub trait Intrinsic: Sized + Clone {
     fn name(&self) -> Cow<str>;
 
     /// Unique identifier for this `Intrinsic`.
@@ -534,12 +534,12 @@ pub trait Architecture: 'static + Sized + AsRef<CoreArchitecture> {
 }
 
 /// Type for architrectures that do not use register stacks. Will panic if accessed as a register stack.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct UnusedRegisterStackInfo<R: Register> {
     _reg: std::marker::PhantomData<R>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct UnusedRegisterStack<R: Register> {
     _reg: std::marker::PhantomData<R>,
 }
