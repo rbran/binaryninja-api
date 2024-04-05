@@ -18,8 +18,6 @@ use binaryninjacore_sys::*;
 
 use crate::disassembly::DisassemblyTextLine;
 
-use crate::rc::*;
-
 use std::marker::PhantomData;
 
 pub type BranchType = BNBranchType;
@@ -76,7 +74,7 @@ impl<'a> FlowGraphNode<'a> {
     }
 
     pub fn set_lines(&self, lines: Vec<&str>) {
-        let lines = lines
+        let lines: Vec<_> = lines
             .iter()
             .map(|&line| DisassemblyTextLine::from(&vec![line]))
             .collect::<Vec<_>>();
@@ -93,24 +91,15 @@ impl<'a> FlowGraphNode<'a> {
     }
 }
 
-unsafe impl<'a> RefCountable for FlowGraphNode<'a> {
-    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Ref::new(Self {
-            handle: BNNewFlowGraphNodeReference(handle.handle),
-            _data: PhantomData,
-        })
-    }
-
-    unsafe fn dec_ref(handle: &Self) {
-        BNFreeFlowGraphNode(handle.handle);
+impl<'a> Clone for FlowGraphNode<'a> {
+    fn clone(&self) -> Self {
+        unsafe { Self::from_raw(BNNewFlowGraphNodeReference(self.handle)) }
     }
 }
 
-impl<'a> ToOwned for FlowGraphNode<'a> {
-    type Owned = Ref<Self>;
-
-    fn to_owned(&self) -> Self::Owned {
-        unsafe { RefCountable::inc_ref(self) }
+impl<'a> Drop for FlowGraphNode<'a> {
+    fn drop(&mut self) {
+        unsafe { BNFreeFlowGraphNode(self.handle) }
     }
 }
 
@@ -124,8 +113,8 @@ impl FlowGraph {
         Self { handle: raw }
     }
 
-    pub fn new() -> Ref<Self> {
-        unsafe { Ref::new(FlowGraph::from_raw(BNCreateFlowGraph())) }
+    pub fn new() -> Self {
+        unsafe { FlowGraph::from_raw(BNCreateFlowGraph()) }
     }
 
     pub fn append(&self, node: &FlowGraphNode) -> usize {
@@ -141,22 +130,14 @@ impl FlowGraph {
     }
 }
 
-unsafe impl RefCountable for FlowGraph {
-    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Ref::new(Self {
-            handle: BNNewFlowGraphReference(handle.handle),
-        })
-    }
-
-    unsafe fn dec_ref(handle: &Self) {
-        BNFreeFlowGraph(handle.handle);
+impl Clone for FlowGraph {
+    fn clone(&self) -> Self {
+        unsafe { Self::from_raw(BNNewFlowGraphReference(self.handle)) }
     }
 }
 
-impl ToOwned for FlowGraph {
-    type Owned = Ref<Self>;
-
-    fn to_owned(&self) -> Self::Owned {
-        unsafe { RefCountable::inc_ref(self) }
+impl Drop for FlowGraph {
+    fn drop(&mut self) {
+        unsafe { BNFreeFlowGraph(self.handle) }
     }
 }

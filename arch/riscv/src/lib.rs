@@ -29,7 +29,6 @@ use binaryninja::{
         ExprInfo, InstrInfo, Label, Liftable, LiftableWithSize, LiftedNonSSA, Lifter, Mutable,
         NonSSA,
     },
-    rc::Ref,
     relocation::{
         CoreRelocationHandler, CustomRelocationHandlerHandle, RelocationHandler, RelocationInfo,
         RelocationType,
@@ -508,24 +507,24 @@ impl<D: RiscVDisassembler> architecture::Intrinsic for RiscVIntrinsic<D> {
         }
     }
 
-    fn inputs(&self) -> Vec<Ref<NameAndType>> {
+    fn inputs(&self) -> Vec<NameAndType> {
         match self.id {
             Intrinsic::Uret | Intrinsic::Sret | Intrinsic::Mret | Intrinsic::Wfi => {
                 vec![]
             }
             Intrinsic::Csrrd => {
                 vec![NameAndType::new(
-                    "csr",
-                    &Type::int(4, false),
+                    "csr".to_string(),
+                    Type::int(4, false),
                     max_confidence(),
                 )]
             }
             Intrinsic::Csrrw | Intrinsic::Csrwr | Intrinsic::Csrrs | Intrinsic::Csrrc => {
                 vec![
-                    NameAndType::new("csr", &Type::int(4, false), max_confidence()),
+                    NameAndType::new("csr".to_string(), Type::int(4, false), max_confidence()),
                     NameAndType::new(
-                        "value",
-                        &Type::int(<D::RegFile as RegFile>::Int::width(), false),
+                        "value".to_string(),
+                        Type::int(<D::RegFile as RegFile>::Int::width(), false),
                         min_confidence(),
                     ),
                 ]
@@ -540,8 +539,8 @@ impl<D: RiscVDisassembler> architecture::Intrinsic for RiscVIntrinsic<D> {
             | Intrinsic::Fmin(size)
             | Intrinsic::Fmax(size) => {
                 vec![
-                    NameAndType::new("", &Type::float(size as usize), max_confidence()),
-                    NameAndType::new("", &Type::float(size as usize), max_confidence()),
+                    NameAndType::new("".to_string(), Type::float(size as usize), max_confidence()),
+                    NameAndType::new("".to_string(), Type::float(size as usize), max_confidence()),
                 ]
             }
             Intrinsic::Fsqrt(size, _)
@@ -550,36 +549,36 @@ impl<D: RiscVDisassembler> architecture::Intrinsic for RiscVIntrinsic<D> {
             | Intrinsic::FcvtFToI(size, _, _)
             | Intrinsic::FcvtFToU(size, _, _) => {
                 vec![NameAndType::new(
-                    "",
-                    &Type::float(size as usize),
+                    "".to_string(),
+                    Type::float(size as usize),
                     max_confidence(),
                 )]
             }
             Intrinsic::FcvtIToF(size, _, _) => {
                 vec![NameAndType::new(
-                    "",
-                    &Type::int(size as usize, true),
+                    "".to_string(),
+                    Type::int(size as usize, true),
                     max_confidence(),
                 )]
             }
             Intrinsic::FcvtUToF(size, _, _) => {
                 vec![NameAndType::new(
-                    "",
-                    &Type::int(size as usize, false),
+                    "".to_string(),
+                    Type::int(size as usize, false),
                     max_confidence(),
                 )]
             }
             Intrinsic::Fence => {
                 vec![NameAndType::new(
-                    "",
-                    &Type::int(4, false),
+                    "".to_string(),
+                    Type::int(4, false),
                     min_confidence(),
                 )]
             }
         }
     }
 
-    fn outputs(&self) -> Vec<Conf<Ref<Type>>> {
+    fn outputs(&self) -> Vec<Conf<Type>> {
         match self.id {
             Intrinsic::Uret
             | Intrinsic::Sret
@@ -2855,9 +2854,9 @@ impl FunctionRecognizer for RiscVELFPLTRecognizer {
         }
 
         let func_sym =
-            Symbol::imported_function_from_import_address_symbol(sym.as_ref(), func.start());
-        bv.define_auto_symbol(func_sym.as_ref());
-        func.apply_imported_types(func_sym.as_ref(), None);
+            Symbol::imported_function_from_import_address_symbol(&sym, func.start());
+        bv.define_auto_symbol(&func_sym);
+        func.apply_imported_types(&func_sym, None);
         true
     }
 }

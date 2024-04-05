@@ -55,7 +55,7 @@ impl From<(CoreArchitecture, u64)> for Location {
 
 pub struct NativeBlockIter {
     arch: CoreArchitecture,
-    bv: Ref<BinaryView>,
+    bv: BinaryView,
     cur: u64,
     end: u64,
 }
@@ -112,6 +112,7 @@ impl BlockContext for NativeBlock {
     }
 }
 
+#[repr(transparent)]
 #[derive(Eq)]
 pub struct Function {
     pub(crate) handle: *mut BNFunction,
@@ -121,8 +122,8 @@ unsafe impl Send for Function {}
 unsafe impl Sync for Function {}
 
 impl Function {
-    pub(crate) unsafe fn from_raw(handle: *mut BNFunction) -> Ref<Self> {
-        Ref::new(Self { handle })
+    pub(crate) unsafe fn from_raw(handle: *mut BNFunction) -> Self {
+        Self { handle }
     }
 
     pub fn arch(&self) -> CoreArchitecture {
@@ -132,24 +133,24 @@ impl Function {
         }
     }
 
-    pub fn platform(&self) -> Ref<Platform> {
+    pub fn platform(&self) -> Platform {
         unsafe {
             let plat = BNGetFunctionPlatform(self.handle);
-            Platform::ref_from_raw(plat)
+            Platform::from_raw(plat)
         }
     }
 
-    pub fn view(&self) -> Ref<BinaryView> {
+    pub fn view(&self) -> BinaryView {
         unsafe {
             let view = BNGetFunctionData(self.handle);
             BinaryView::from_raw(view)
         }
     }
 
-    pub fn symbol(&self) -> Ref<Symbol> {
+    pub fn symbol(&self) -> Symbol {
         unsafe {
             let sym = BNGetFunctionSymbol(self.handle);
-            Symbol::ref_from_raw(sym)
+            Symbol::from_raw(sym)
         }
     }
 
@@ -218,7 +219,7 @@ impl Function {
         &self,
         arch: &CoreArchitecture,
         addr: u64,
-    ) -> Option<Ref<BasicBlock<NativeBlock>>> {
+    ) -> Option<BasicBlock<NativeBlock>> {
         unsafe {
             let block = BNGetFunctionBasicBlockAtAddress(self.handle, arch.0, addr);
             let context = NativeBlock { _priv: () };
@@ -227,7 +228,7 @@ impl Function {
                 return None;
             }
 
-            Some(Ref::new(BasicBlock::from_raw(block, context)))
+            Some(BasicBlock::from_raw(block, context))
         }
     }
 
@@ -239,7 +240,7 @@ impl Function {
         }
     }
 
-    pub fn high_level_il(&self, full_ast: bool) -> Result<Ref<hlil::HighLevelILFunction>, ()> {
+    pub fn high_level_il(&self, full_ast: bool) -> Result<hlil::HighLevelILFunction, ()> {
         unsafe {
             let hlil = BNGetFunctionHighLevelIL(self.handle);
 
@@ -247,11 +248,11 @@ impl Function {
                 return Err(());
             }
 
-            Ok(hlil::HighLevelILFunction::ref_from_raw(hlil, full_ast))
+            Ok(hlil::HighLevelILFunction::from_raw(hlil, full_ast))
         }
     }
 
-    pub fn medium_level_il(&self) -> Result<Ref<mlil::MediumLevelILFunction>, ()> {
+    pub fn medium_level_il(&self) -> Result<mlil::MediumLevelILFunction, ()> {
         unsafe {
             let mlil = BNGetFunctionMediumLevelIL(self.handle);
 
@@ -259,11 +260,11 @@ impl Function {
                 return Err(());
             }
 
-            Ok(mlil::MediumLevelILFunction::ref_from_raw(mlil))
+            Ok(mlil::MediumLevelILFunction::from_raw(mlil))
         }
     }
 
-    pub fn low_level_il(&self) -> Result<Ref<llil::RegularFunction<CoreArchitecture>>, ()> {
+    pub fn low_level_il(&self) -> Result<llil::RegularFunction<CoreArchitecture>, ()> {
         unsafe {
             let llil = BNGetFunctionLowLevelIL(self.handle);
 
@@ -275,7 +276,7 @@ impl Function {
         }
     }
 
-    pub fn lifted_il(&self) -> Result<Ref<llil::LiftedFunction<CoreArchitecture>>, ()> {
+    pub fn lifted_il(&self) -> Result<llil::LiftedFunction<CoreArchitecture>, ()> {
         unsafe {
             let llil = BNGetFunctionLiftedIL(self.handle);
 
@@ -287,17 +288,14 @@ impl Function {
         }
     }
 
-    pub fn return_type(&self) -> Conf<Ref<Type>> {
+    pub fn return_type(&self) -> Conf<Type> {
         let result = unsafe { BNGetFunctionReturnType(self.handle) };
 
-        Conf::new(
-            unsafe { Type::ref_from_raw(result.type_) },
-            result.confidence,
-        )
+        Conf::new(unsafe { Type::from_raw(result.type_) }, result.confidence)
     }
 
-    pub fn function_type(&self) -> Ref<Type> {
-        unsafe { Type::ref_from_raw(BNGetFunctionType(self.handle)) }
+    pub fn function_type(&self) -> Type {
+        unsafe { Type::from_raw(BNGetFunctionType(self.handle)) }
     }
 
     pub fn set_user_type(&self, t: Type) {
@@ -391,23 +389,15 @@ impl fmt::Debug for Function {
     }
 }
 
-impl ToOwned for Function {
-    type Owned = Ref<Self>;
-
-    fn to_owned(&self) -> Self::Owned {
-        unsafe { RefCountable::inc_ref(self) }
+impl Clone for Function {
+    fn clone(&self) -> Self {
+        unsafe { Self::from_raw(BNNewFunctionReference(self.handle)) }
     }
 }
 
-unsafe impl RefCountable for Function {
-    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Ref::new(Self {
-            handle: BNNewFunctionReference(handle.handle),
-        })
-    }
-
-    unsafe fn dec_ref(handle: &Self) {
-        BNFreeFunction(handle.handle);
+impl Drop for Function {
+    fn drop(&mut self) {
+        unsafe { BNFreeFunction(self.handle) }
     }
 }
 

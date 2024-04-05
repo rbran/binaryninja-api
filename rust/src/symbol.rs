@@ -152,7 +152,7 @@ impl SymbolBuilder {
         self
     }
 
-    pub fn create(self) -> Ref<Symbol> {
+    pub fn create(self) -> Symbol {
         let raw_name = self.raw_name.into_bytes_with_nul();
         let short_name = self.short_name.map(|s| s.into_bytes_with_nul());
         let full_name = self.full_name.map(|s| s.into_bytes_with_nul());
@@ -172,7 +172,7 @@ impl SymbolBuilder {
                         ptr::null_mut(),
                         self.ordinal,
                     );
-                    Symbol::ref_from_raw(res)
+                    Symbol::from_raw(res)
                 } else {
                     let res = BNCreateSymbol(
                         self.ty.into(),
@@ -184,7 +184,7 @@ impl SymbolBuilder {
                         ptr::null_mut(),
                         self.ordinal,
                     );
-                    Symbol::ref_from_raw(res)
+                    Symbol::from_raw(res)
                 }
             } else if let Some(full_name) = full_name {
                 let res = BNCreateSymbol(
@@ -197,7 +197,7 @@ impl SymbolBuilder {
                     ptr::null_mut(),
                     self.ordinal,
                 );
-                Symbol::ref_from_raw(res)
+                Symbol::from_raw(res)
             } else {
                 let res = BNCreateSymbol(
                     self.ty.into(),
@@ -209,22 +209,19 @@ impl SymbolBuilder {
                     ptr::null_mut(),
                     self.ordinal,
                 );
-                Symbol::ref_from_raw(res)
+                Symbol::from_raw(res)
             }
         }
     }
 }
 
+#[repr(transparent)]
 #[derive(Eq)]
 pub struct Symbol {
     pub(crate) handle: *mut BNSymbol,
 }
 
 impl Symbol {
-    pub(crate) unsafe fn ref_from_raw(raw: *mut BNSymbol) -> Ref<Self> {
-        Ref::new(Self { handle: raw })
-    }
-
     pub(crate) unsafe fn from_raw(raw: *mut BNSymbol) -> Self {
         Self { handle: raw }
     }
@@ -282,10 +279,10 @@ impl Symbol {
         self.binding() == Binding::Weak || self.binding() == Binding::Global
     }
 
-    pub fn imported_function_from_import_address_symbol(sym: &Symbol, addr: u64) -> Ref<Symbol> {
+    pub fn imported_function_from_import_address_symbol(sym: &Symbol, addr: u64) -> Symbol {
         unsafe {
             let res = BNImportedFunctionFromImportAddressSymbol(sym.handle, addr);
-            Symbol::ref_from_raw(res)
+            Symbol::from_raw(res)
         }
     }
 }
@@ -306,23 +303,15 @@ impl fmt::Debug for Symbol {
     }
 }
 
-impl ToOwned for Symbol {
-    type Owned = Ref<Self>;
-
-    fn to_owned(&self) -> Self::Owned {
-        unsafe { RefCountable::inc_ref(self) }
+impl Clone for Symbol {
+    fn clone(&self) -> Self {
+        unsafe { Self::from_raw(BNNewSymbolReference(self.handle)) }
     }
 }
 
-unsafe impl RefCountable for Symbol {
-    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Ref::new(Self {
-            handle: BNNewSymbolReference(handle.handle),
-        })
-    }
-
-    unsafe fn dec_ref(handle: &Self) {
-        BNFreeSymbol(handle.handle);
+impl Drop for Symbol {
+    fn drop(&mut self) {
+        unsafe { BNFreeSymbol(self.handle) }
     }
 }
 

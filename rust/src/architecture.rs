@@ -35,7 +35,6 @@ use crate::{
         get_default_flag_cond_llil, get_default_flag_write_llil, FlagWriteOp, LiftedExpr, Lifter,
     },
     platform::Platform,
-    rc::*,
     relocation::CoreRelocationHandler,
     string::BnStrCompatible,
     string::*,
@@ -313,10 +312,10 @@ pub trait Intrinsic: Sized + Clone + Copy {
     fn id(&self) -> u32;
 
     /// Reeturns the list of the input names and types for this intrinsic.
-    fn inputs(&self) -> Vec<Ref<NameAndType>>;
+    fn inputs(&self) -> Vec<NameAndType>;
 
     /// Returns the list of the output types for this intrinsic.
-    fn outputs(&self) -> Vec<Conf<Ref<Type>>>;
+    fn outputs(&self) -> Vec<Conf<Type>>;
 }
 
 pub trait Architecture: 'static + Sized + AsRef<CoreArchitecture> {
@@ -650,10 +649,10 @@ impl Intrinsic for UnusedIntrinsic {
     fn id(&self) -> u32 {
         unreachable!()
     }
-    fn inputs(&self) -> Vec<Ref<NameAndType>> {
+    fn inputs(&self) -> Vec<NameAndType> {
         unreachable!()
     }
-    fn outputs(&self) -> Vec<Conf<Ref<Type>>> {
+    fn outputs(&self) -> Vec<Conf<Type>> {
         unreachable!()
     }
 }
@@ -992,7 +991,7 @@ impl Intrinsic for crate::architecture::CoreIntrinsic {
         self.1
     }
 
-    fn inputs(&self) -> Vec<Ref<NameAndType>> {
+    fn inputs(&self) -> Vec<NameAndType> {
         let mut count: usize = 0;
 
         unsafe {
@@ -1009,7 +1008,7 @@ impl Intrinsic for crate::architecture::CoreIntrinsic {
         }
     }
 
-    fn outputs(&self) -> Vec<Conf<Ref<Type>>> {
+    fn outputs(&self) -> Vec<Conf<Type>> {
         let mut count: usize = 0;
 
         unsafe {
@@ -1553,7 +1552,7 @@ impl Architecture for CoreArchitecture {
 
 macro_rules! cc_func {
     ($get_name:ident, $get_api:ident, $set_name:ident, $set_api:ident) => {
-        fn $get_name(&self) -> Option<Ref<CallingConvention<Self>>> {
+        fn $get_name(&self) -> Option<CallingConvention<Self>> {
             let handle = self.as_ref();
 
             unsafe {
@@ -1623,7 +1622,7 @@ pub trait ArchitectureExt: Architecture {
         BNSetArchitectureFastcallCallingConvention
     );
 
-    fn standalone_platform(&self) -> Option<Ref<Platform>> {
+    fn standalone_platform(&self) -> Option<Platform> {
         unsafe {
             let handle = BNGetArchitectureStandalonePlatform(self.as_ref().0);
 
@@ -1631,11 +1630,11 @@ pub trait ArchitectureExt: Architecture {
                 return None;
             }
 
-            Some(Platform::ref_from_raw(handle))
+            Some(Platform::from_raw(handle))
         }
     }
 
-    fn relocation_handler(&self, view_name: &str) -> Option<Ref<CoreRelocationHandler>> {
+    fn relocation_handler(&self, view_name: &str) -> Option<CoreRelocationHandler> {
         let view_name = match CString::new(view_name) {
             Ok(view_name) => view_name,
             Err(_) => return None,
@@ -1648,7 +1647,7 @@ pub trait ArchitectureExt: Architecture {
                 return None;
             }
 
-            Some(CoreRelocationHandler::ref_from_raw(handle))
+            Some(CoreRelocationHandler::from_raw(handle))
         }
     }
 
@@ -2419,7 +2418,7 @@ where
         };
 
         let inputs = intrinsic.inputs();
-        let mut res: Box<[_]> = inputs.into_iter().map(|input| unsafe { Ref::into_raw(input) }.0).collect();
+        let mut res: Box<[_]> = inputs.into_iter().map(|input| input.into_raw()).collect();
 
         unsafe {
             *count = res.len();
@@ -2443,7 +2442,7 @@ where
             unsafe {
                 let name_and_types = Box::from_raw(ptr::slice_from_raw_parts_mut(nt, count));
                 for nt in name_and_types.iter() {
-                    Ref::new(NameAndType::from_raw(nt));
+                    NameAndType::from_raw(nt);
                 }
             }
         }

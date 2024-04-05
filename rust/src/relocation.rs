@@ -4,7 +4,7 @@ use crate::{
     architecture::{Architecture, CoreArchitecture},
     binaryview::BinaryView,
     llil,
-    rc::{CoreArrayProvider, CoreArrayProviderInner, Ref, RefCountable},
+    rc::{CoreArrayProvider, CoreArrayProviderInner},
     symbol::Symbol,
 };
 use binaryninjacore_sys::*;
@@ -208,13 +208,13 @@ impl Relocation {
         unsafe { BNRelocationGetReloc(self.0) }
     }
 
-    pub fn symbol(&self) -> Option<Ref<Symbol>> {
+    pub fn symbol(&self) -> Option<Symbol> {
         let raw = unsafe { BNRelocationGetSymbol(self.0) };
         if raw.is_null() {
             return None;
         }
 
-        Some(unsafe { Symbol::ref_from_raw(raw) })
+        Some(unsafe { Symbol::from_raw(raw) })
     }
 }
 
@@ -298,8 +298,8 @@ unsafe impl Send for CoreRelocationHandler {}
 unsafe impl Sync for CoreRelocationHandler {}
 
 impl CoreRelocationHandler {
-    pub(crate) unsafe fn ref_from_raw(raw: *mut BNRelocationHandler) -> Ref<Self> {
-        unsafe { Ref::new(CoreRelocationHandler(raw)) }
+    pub(crate) unsafe fn from_raw(raw: *mut BNRelocationHandler) -> Self {
+        CoreRelocationHandler(raw)
     }
 }
 
@@ -378,21 +378,17 @@ impl RelocationHandler for CoreRelocationHandler {
     }
 }
 
-impl ToOwned for CoreRelocationHandler {
-    type Owned = Ref<Self>;
-
-    fn to_owned(&self) -> Self::Owned {
-        unsafe { RefCountable::inc_ref(self) }
+impl Clone for CoreRelocationHandler {
+    fn clone(&self) -> Self {
+        unsafe { Self(BNNewRelocationHandlerReference(self.0)) }
     }
 }
 
-unsafe impl RefCountable for CoreRelocationHandler {
-    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Ref::new(Self(BNNewRelocationHandlerReference(handle.0)))
-    }
-
-    unsafe fn dec_ref(handle: &Self) {
-        BNFreeRelocationHandler(handle.0);
+impl Drop for CoreRelocationHandler {
+    fn drop(&mut self) {
+        unsafe {
+            BNFreeRelocationHandler(self.0);
+        }
     }
 }
 

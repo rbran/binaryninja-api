@@ -3,7 +3,6 @@ use binaryninjacore_sys::BNGetHighLevelILByIndex;
 use binaryninjacore_sys::BNHighLevelILOperation;
 
 use crate::operand_iter::OperandIter;
-use crate::rc::Ref;
 use crate::types::{
     ConstantData, ILIntrinsic, RegisterValue, RegisterValueType, SSAVariable, Variable,
 };
@@ -13,7 +12,7 @@ use super::{HighLevelILFunction, HighLevelILLiftedInstruction, HighLevelILLifted
 
 #[derive(Clone)]
 pub struct HighLevelILInstruction {
-    pub function: Ref<HighLevelILFunction>,
+    pub function: HighLevelILFunction,
     pub address: u64,
     pub index: usize,
     pub size: usize,
@@ -146,7 +145,7 @@ pub enum HighLevelILInstructionKind {
     DoWhileSsa(WhileSsa),
 }
 impl HighLevelILInstruction {
-    pub(crate) fn new(function: Ref<HighLevelILFunction>, index: usize) -> Self {
+    pub(crate) fn new(function: HighLevelILFunction, index: usize) -> Self {
         let op = unsafe { BNGetHighLevelILByIndex(function.handle, index, function.full_ast) };
         use BNHighLevelILOperation::*;
         use HighLevelILInstructionKind as Op;
@@ -827,7 +826,7 @@ impl HighLevelILInstruction {
             }),
             MemPhi(op) => Lifted::MemPhi(LiftedMemPhi {
                 dest: op.dest,
-                src: OperandIter::new(&*self.function, op.first_src, op.num_srcs).collect(),
+                src: OperandIter::new(&self.function, op.first_src, op.num_srcs).collect(),
             }),
             Ret(op) => Lifted::Ret(LiftedRet {
                 src: self.lift_instruction_list(op.first_src, op.num_srcs),
@@ -864,7 +863,7 @@ impl HighLevelILInstruction {
             }),
             VarPhi(op) => Lifted::VarPhi(LiftedVarPhi {
                 dest: op.dest,
-                src: OperandIter::new(&*self.function, op.first_src, op.num_srcs)
+                src: OperandIter::new(&self.function, op.first_src, op.num_srcs)
                     .ssa_vars()
                     .collect(),
             }),
@@ -922,7 +921,7 @@ impl HighLevelILInstruction {
     fn lift_call(&self, op: Call) -> LiftedCall {
         LiftedCall {
             dest: self.lift_operand(op.dest),
-            params: OperandIter::new(&*self.function, op.first_param, op.num_params)
+            params: OperandIter::new(&self.function, op.first_param, op.num_params)
                 .exprs()
                 .map(|expr| expr.lift())
                 .collect(),
@@ -957,7 +956,7 @@ impl HighLevelILInstruction {
         first_instruction: usize,
         num_instructions: usize,
     ) -> Vec<HighLevelILLiftedInstruction> {
-        OperandIter::new(&*self.function, first_instruction, num_instructions)
+        OperandIter::new(&self.function, first_instruction, num_instructions)
             .exprs()
             .map(|expr| expr.lift())
             .collect()

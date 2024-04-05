@@ -19,7 +19,6 @@ use binaryninja::architecture::{Architecture, CoreArchitecture};
 use binaryninja::binaryview::BinaryViewExt;
 use binaryninja::callingconvention::CallingConvention;
 use binaryninja::platform::Platform;
-use binaryninja::rc::Ref;
 use binaryninja::types::{
     max_confidence, BaseStructure, Conf, EnumerationBuilder, EnumerationMember, FunctionParameter,
     MemberAccess, MemberScope, NamedTypeReference, NamedTypeReferenceClass, QualifiedName,
@@ -55,9 +54,9 @@ static BUILTIN_NAMES: &[&'static str] = &[
 #[derive(Debug, Clone)]
 pub struct ParsedProcedureType {
     /// Interpreted type of the method, with thisptr, __return, etc
-    pub method_type: Ref<Type>,
+    pub method_type: Type,
     /// Base method type right outta the pdb with no frills
-    pub raw_method_type: Ref<Type>,
+    pub raw_method_type: Type,
 }
 
 /// Bitfield member type, if we ever get around to implementing these
@@ -68,14 +67,14 @@ pub struct ParsedBitfieldType {
     /// Bit offset in the current bitfield set
     pub position: u64,
     /// Underlying type of the whole bitfield set
-    pub ty: Ref<Type>,
+    pub ty: Type,
 }
 
 /// Parsed member of a class/structure, basically just binaryninja::StructureMember but with bitfields :(
 #[derive(Debug, Clone)]
 pub struct ParsedMember {
     /// Member type
-    pub ty: Conf<Ref<Type>>,
+    pub ty: Conf<Type>,
     /// Member name
     pub name: String,
     /// Offset in structure
@@ -122,11 +121,11 @@ pub struct ParsedMemberFunction {
     /// Parent class's name
     pub class_name: String,
     /// Interpreted type of the method, with thisptr, __return, etc
-    pub method_type: Ref<Type>,
+    pub method_type: Type,
     /// Base method type right outta the pdb with no frills
-    pub raw_method_type: Ref<Type>,
+    pub raw_method_type: Type,
     /// Type of thisptr object, if relevant
-    pub this_pointer_type: Option<Ref<Type>>,
+    pub this_pointer_type: Option<Type>,
     /// Adjust to thisptr at start, for virtual bases or something
     pub this_adjustment: usize,
 }
@@ -137,11 +136,11 @@ pub struct VirtualBaseClass {
     /// Base class name
     pub base_name: String,
     /// Base class type
-    pub base_type: Ref<Type>,
+    pub base_type: Type,
     /// Offset in this class where the base's fields are located
     pub base_offset: u64,
     /// Type of vbtable, probably
-    pub base_table_type: Ref<Type>,
+    pub base_table_type: Type,
     /// Offset of this base in the vbtable
     pub base_table_offset: u64,
 }
@@ -150,9 +149,9 @@ pub struct VirtualBaseClass {
 #[derive(Debug, Clone)]
 pub enum ParsedType {
     /// No info other than type data
-    Bare(Ref<Type>),
+    Bare(Type),
     /// Named fully parsed class/enum/union/etc type
-    Named(String, Ref<Type>),
+    Named(String, Type),
     /// Function procedure
     Procedure(ParsedProcedureType),
     /// Bitfield entries
@@ -372,25 +371,23 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
                     let bare_type = match type_class {
                         NamedTypeReferenceClass::ClassNamedTypeClass => Type::structure(
-                            StructureBuilder::new()
+                            &StructureBuilder::new()
                                 .set_structure_type(StructureType::ClassStructureType)
-                                .finalize()
-                                .as_ref(),
+                                .finalize(),
                         ),
                         // Missing typedefs are just going to become structures
                         NamedTypeReferenceClass::UnknownNamedTypeClass
                         | NamedTypeReferenceClass::TypedefNamedTypeClass
                         | NamedTypeReferenceClass::StructNamedTypeClass => {
-                            Type::structure(StructureBuilder::new().finalize().as_ref())
+                            Type::structure(&StructureBuilder::new().finalize())
                         }
                         NamedTypeReferenceClass::UnionNamedTypeClass => Type::structure(
-                            StructureBuilder::new()
+                            &StructureBuilder::new()
                                 .set_structure_type(StructureType::UnionStructureType)
-                                .finalize()
-                                .as_ref(),
+                                .finalize(),
                         ),
                         NamedTypeReferenceClass::EnumNamedTypeClass => Type::enumeration(
-                            EnumerationBuilder::new().finalize().as_ref(),
+                            &EnumerationBuilder::new().finalize(),
                             self.arch.default_integer_size(),
                             false,
                         ),
@@ -432,7 +429,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         &self,
         index: &TypeIndex,
         fancy_procs: bool,
-    ) -> Result<Option<Ref<Type>>> {
+    ) -> Result<Option<Type>> {
         match self.indexed_types.get(index) {
             Some(ParsedType::Bare(ty)) => Ok(Some(ty.clone())),
             Some(ParsedType::Named(name, ty)) => Ok(Some(Type::named_type_from_type(name, &ty))),
@@ -467,7 +464,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         &self,
         index: &TypeIndex,
         fancy_procs: bool,
-    ) -> Result<Option<Conf<Ref<Type>>>> {
+    ) -> Result<Option<Conf<Type>>> {
         match self.lookup_type(index, fancy_procs)? {
             Some(ty) if ty.type_class() == TypeClass::VoidTypeClass => Ok(Some(Conf::new(ty, 0))),
             Some(ty) => {
@@ -665,7 +662,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             // Hack: this isn't always defined
             PrimitiveKind::HRESULT => Ok(Type::named_type_from_type(
                 "HRESULT",
-                Type::int(4, true).as_ref(),
+                &Type::int(4, true),
             )),
             _ => Err(anyhow!("Unknown type unimplmented")),
         }?;
@@ -674,31 +671,31 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         match data.indirection {
             Some(Indirection::Near16) => Ok(Some(Box::new(ParsedType::Bare(Type::pointer(
                 &self.arch,
-                base.as_ref(),
+                &base,
             ))))),
             Some(Indirection::Far16) => Ok(Some(Box::new(ParsedType::Bare(Type::pointer(
                 &self.arch,
-                base.as_ref(),
+                &base,
             ))))),
             Some(Indirection::Huge16) => Ok(Some(Box::new(ParsedType::Bare(Type::pointer(
                 &self.arch,
-                base.as_ref(),
+                &base,
             ))))),
             Some(Indirection::Near32) => Ok(Some(Box::new(ParsedType::Bare(Type::pointer(
                 &self.arch,
-                base.as_ref(),
+                &base,
             ))))),
             Some(Indirection::Far32) => Ok(Some(Box::new(ParsedType::Bare(Type::pointer(
                 &self.arch,
-                base.as_ref(),
+                &base,
             ))))),
             Some(Indirection::Near64) => Ok(Some(Box::new(ParsedType::Bare(Type::pointer(
                 &self.arch,
-                base.as_ref(),
+                &base,
             ))))),
             Some(Indirection::Near128) => Ok(Some(Box::new(ParsedType::Bare(Type::pointer(
                 &self.arch,
-                base.as_ref(),
+                &base,
             ))))),
             None => Ok(Some(Box::new(ParsedType::Bare(base)))),
         }
@@ -730,7 +727,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 ClassKind::Interface => NamedTypeReferenceClass::StructNamedTypeClass,
             };
             return Ok(Some(Box::new(ParsedType::Bare(Type::named_type(
-                &*NamedTypeReference::new(ntr_class, QualifiedName::from(class_name)),
+                &NamedTypeReference::new(ntr_class, QualifiedName::from(class_name)),
             )))));
         }
 
@@ -752,7 +749,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             let _ = success?;
         }
 
-        let new_type = Type::structure(structure.finalize().as_ref());
+        let new_type = Type::structure(&structure.finalize());
         Ok(Some(Box::new(ParsedType::Named(class_name, new_type))))
     }
 
@@ -840,7 +837,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                         if let Some(builder) = bitfield_builder.take() {
                             combined_bitfield_members.push(ParsedMember {
                                 ty: Conf::new(
-                                    Type::structure(builder.finalize().as_ref()),
+                                    Type::structure(&builder.finalize()),
                                     max_confidence(),
                                 ),
                                 name: bitfield_name(
@@ -877,7 +874,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     if let Some(builder) = bitfield_builder.take() {
                         combined_bitfield_members.push(ParsedMember {
                             ty: Conf::new(
-                                Type::structure(builder.finalize().as_ref()),
+                                Type::structure(&builder.finalize()),
                                 max_confidence(),
                             ),
                             name: bitfield_name(
@@ -901,7 +898,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         if let Some(builder) = bitfield_builder.take() {
             combined_bitfield_members.push(ParsedMember {
                 ty: Conf::new(
-                    Type::structure(builder.finalize().as_ref()),
+                    Type::structure(&builder.finalize()),
                     max_confidence(),
                 ),
                 name: bitfield_name(last_bitfield_offset, last_bitfield_idx),
@@ -1095,7 +1092,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
             vt.set_width(min_width);
 
-            let vt_type = Type::structure(vt.finalize().as_ref());
+            let vt_type = Type::structure(&vt.finalize());
             // Need to insert a new named type for the vtable
             let mut vt_name = self
                 .namespace_stack
@@ -1108,7 +1105,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             let vt_pointer = Type::pointer(
                 &self.arch,
                 &Conf::new(
-                    Type::named_type_from_type(&QualifiedName::from(vt_name), vt_type.as_ref()),
+                    Type::named_type_from_type(&QualifiedName::from(vt_name), &vt_type),
                     max_confidence(),
                 ),
             );
@@ -1208,7 +1205,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         // It looks like pdb stores varargs by having the final argument be void
         let mut is_varargs = false;
         if let Some(last) = arguments.pop() {
-            if last.t.contents.as_ref().type_class() == TypeClass::VoidTypeClass {
+            if last.t.contents.type_class() == TypeClass::VoidTypeClass {
                 is_varargs = true;
             } else {
                 arguments.push(last);
@@ -1370,7 +1367,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
         // Try to resolve the full base type
         let resolved_type = match self.try_type_index_to_bare(data.base_class, finder, true)? {
-            Some(ty) => Type::named_type_from_type(&member_name, ty.as_ref()),
+            Some(ty) => Type::named_type_from_type(&member_name, &ty),
             None => t.clone(),
         };
 
@@ -1490,7 +1487,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         // It looks like pdb stores varargs by having the final argument be void
         let mut is_varargs = false;
         if let Some(last) = arguments.pop() {
-            if last.t.contents.as_ref().type_class() == TypeClass::VoidTypeClass {
+            if last.t.contents.type_class() == TypeClass::VoidTypeClass {
                 is_varargs = true;
             } else {
                 arguments.push(last);
@@ -1563,7 +1560,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         if let Some(base) = base {
             Ok(Some(Box::new(ParsedType::Bare(Type::pointer(
                 &self.arch,
-                base.as_ref(),
+                &base,
             )))))
         } else {
             Ok(None)
@@ -1579,7 +1576,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         let base = self.try_type_index_to_bare(data.underlying_type, finder, false)?;
 
         if let Some(base) = base {
-            let builder = TypeBuilder::new(base.as_ref());
+            let builder = TypeBuilder::new(&base);
             builder.set_const(data.constant);
             builder.set_volatile(data.volatile);
             Ok(Some(Box::new(ParsedType::Bare(builder.finalize()))))
@@ -1609,7 +1606,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
             let ntr_class = NamedTypeReferenceClass::EnumNamedTypeClass;
             return Ok(Some(Box::new(ParsedType::Bare(Type::named_type(
-                &*NamedTypeReference::new(ntr_class, QualifiedName::from(enum_name)),
+                &NamedTypeReference::new(ntr_class, QualifiedName::from(enum_name)),
             )))));
         }
 
@@ -1637,7 +1634,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         };
 
         let new_type = Type::enumeration(
-            enumeration.finalize().as_ref(),
+            &enumeration.finalize(),
             underlying.width() as usize,
             underlying.is_signed().contents,
         );
@@ -1706,7 +1703,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     counts[j] /= new_type.width();
                 }
 
-                new_type = Type::array(new_type.as_ref(), counts[i] as u64);
+                new_type = Type::array(&new_type, counts[i] as u64);
             }
 
             Ok(Some(Box::new(ParsedType::Bare(new_type))))
@@ -1736,7 +1733,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
             let ntr_class = NamedTypeReferenceClass::UnionNamedTypeClass;
             return Ok(Some(Box::new(ParsedType::Bare(Type::named_type(
-                &*NamedTypeReference::new(ntr_class, QualifiedName::from(union_name)),
+                &NamedTypeReference::new(ntr_class, QualifiedName::from(union_name)),
             )))));
         }
 
@@ -1749,7 +1746,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         self.namespace_stack.pop();
         let _ = success?;
 
-        let new_type = Type::structure(structure.finalize().as_ref());
+        let new_type = Type::structure(&structure.finalize());
         Ok(Some(Box::new(ParsedType::Named(union_name, new_type))))
     }
 
@@ -1810,7 +1807,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 }
                 structure.insert(
                     &Conf::new(
-                        Type::structure(inner_struct.finalize().as_ref()),
+                        Type::structure(&inner_struct.finalize()),
                         max_confidence(),
                     ),
                     format!("__inner{:x}", i),
@@ -1898,7 +1895,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     } else {
                         args.push(FunctionParameter::new(
                             Conf::new(
-                                Type::pointer(self.arch.as_ref(), ty.as_ref()),
+                                Type::pointer(self.arch.as_ref(), &ty),
                                 max_confidence(),
                             ),
                             "".to_string(),
@@ -1945,7 +1942,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         index: TypeIndex,
         finder: &mut ItemFinder<TypeIndex>,
         fully_resolve: bool,
-    ) -> Result<Ref<Type>> {
+    ) -> Result<Type> {
         match self.try_type_index_to_bare(index, finder, fully_resolve)? {
             Some(ty) => Ok(ty),
             None => Err(anyhow!("Unresolved expected type {:?}", index)),
@@ -1959,7 +1956,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         index: TypeIndex,
         finder: &mut ItemFinder<TypeIndex>,
         fully_resolve: bool,
-    ) -> Result<Option<Ref<Type>>> {
+    ) -> Result<Option<Type>> {
         let (mut type_, inner) = match self.handle_type_index(index, finder)? {
             Some(ParsedType::Bare(ty)) => (ty.clone(), None),
             Some(ParsedType::Named(name, ty)) => {
@@ -1986,7 +1983,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     .name()
                     .to_string();
                 if let Some(full_ntr) = self.named_types.get(&name) {
-                    type_ = Type::named_type_from_type(&name, full_ntr.as_ref());
+                    type_ = Type::named_type_from_type(&name, &full_ntr);
                 }
             }
         }
@@ -2071,7 +2068,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
     pub(crate) fn find_calling_convention(
         platform: &Platform,
         name: &str,
-    ) -> Option<Ref<CallingConvention<CoreArchitecture>>> {
+    ) -> Option<CallingConvention<CoreArchitecture>> {
         platform
             .calling_conventions()
             .iter()
@@ -2083,7 +2080,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
     fn cv_call_t_to_calling_convention(
         &self,
         cv: u8,
-    ) -> Option<Ref<CallingConvention<CoreArchitecture>>> {
+    ) -> Option<CallingConvention<CoreArchitecture>> {
         match CV_call_t::try_from(cv) {
             Ok(CV_call_t::NEAR_FAST) | Ok(CV_call_t::FAR_FAST) => {
                 self.platform.get_fastcall_calling_convention()
@@ -2095,43 +2092,43 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 self.platform.get_cdecl_calling_convention()
             }
             Ok(CV_call_t::THISCALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "thiscall")
+                Self::find_calling_convention(&self.platform, "thiscall")
             }
             Ok(CV_call_t::NEAR_PASCAL) | Ok(CV_call_t::FAR_PASCAL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "pascal")
+                Self::find_calling_convention(&self.platform, "pascal")
             }
             Ok(CV_call_t::NEAR_SYS) | Ok(CV_call_t::FAR_SYS) => {
-                Self::find_calling_convention(self.platform.as_ref(), "sys")
+                Self::find_calling_convention(&self.platform, "sys")
             }
             Ok(CV_call_t::MIPSCALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "mipscall")
+                Self::find_calling_convention(&self.platform, "mipscall")
             }
             Ok(CV_call_t::ALPHACALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "alphacall")
+                Self::find_calling_convention(&self.platform, "alphacall")
             }
             Ok(CV_call_t::PPCCALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "ppccall")
+                Self::find_calling_convention(&self.platform, "ppccall")
             }
             Ok(CV_call_t::SHCALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "shcall")
+                Self::find_calling_convention(&self.platform, "shcall")
             }
             Ok(CV_call_t::ARMCALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "armcall")
+                Self::find_calling_convention(&self.platform, "armcall")
             }
             Ok(CV_call_t::AM33CALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "am33call")
+                Self::find_calling_convention(&self.platform, "am33call")
             }
             Ok(CV_call_t::TRICALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "tricall")
+                Self::find_calling_convention(&self.platform, "tricall")
             }
             Ok(CV_call_t::SH5CALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "sh5call")
+                Self::find_calling_convention(&self.platform, "sh5call")
             }
             Ok(CV_call_t::M32RCALL) => {
-                Self::find_calling_convention(self.platform.as_ref(), "m32rcall")
+                Self::find_calling_convention(&self.platform, "m32rcall")
             }
             Ok(CV_call_t::NEAR_VECTOR) => {
-                Self::find_calling_convention(self.platform.as_ref(), "vectorcall")
+                Self::find_calling_convention(&self.platform, "vectorcall")
             }
             _ => None,
         }
@@ -2141,7 +2138,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
     fn insert_this_pointer(
         &self,
         parameters: &mut Vec<FunctionParameter>,
-        this_type: Ref<Type>,
+        this_type: Type,
     ) -> Result<()> {
         parameters.insert(
             0,

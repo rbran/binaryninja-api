@@ -12,7 +12,7 @@ use binaryninjacore_sys::BNNewHighLevelILFunctionReference;
 
 use crate::basicblock::BasicBlock;
 use crate::function::Function;
-use crate::rc::{Array, Ref, RefCountable};
+use crate::rc::Array;
 
 use super::{HighLevelILBlock, HighLevelILInstruction, HighLevelILLiftedInstruction};
 
@@ -38,16 +38,17 @@ impl Hash for HighLevelILFunction {
 }
 
 impl HighLevelILFunction {
-    pub(crate) unsafe fn ref_from_raw(
-        handle: *mut BNHighLevelILFunction,
-        full_ast: bool,
-    ) -> Ref<Self> {
+    pub(crate) unsafe fn from_raw(handle: *mut BNHighLevelILFunction, full_ast: bool) -> Self {
         debug_assert!(!handle.is_null());
-        Self { handle, full_ast }.to_owned()
+        // TODO is handle owned or just borrowed?
+        Self {
+            handle: BNNewHighLevelILFunctionReference(handle),
+            full_ast,
+        }
     }
 
     pub fn instruction_from_idx(&self, expr_idx: usize) -> HighLevelILInstruction {
-        HighLevelILInstruction::new(self.to_owned(), expr_idx)
+        HighLevelILInstruction::new(self.clone(), expr_idx)
     }
 
     pub fn lifted_instruction_from_idx(&self, expr_idx: usize) -> HighLevelILLiftedInstruction {
@@ -90,7 +91,7 @@ impl HighLevelILFunction {
         }
     }
 
-    pub fn get_function(&self) -> Ref<Function> {
+    pub fn get_function(&self) -> Function {
         unsafe {
             let func = BNGetHighLevelILOwnerFunction(self.handle);
             Function::from_raw(func)
@@ -101,13 +102,13 @@ impl HighLevelILFunction {
         let mut count = 0;
         let blocks = unsafe { BNGetHighLevelILBasicBlockList(self.handle, &mut count) };
         let context = HighLevelILBlock {
-            function: self.to_owned(),
+            function: self.clone(),
         };
 
         unsafe { Array::new(blocks, count, context) }
     }
 
-    pub fn as_ast(&self) -> Ref<HighLevelILFunction> {
+    pub fn as_ast(&self) -> HighLevelILFunction {
         Self {
             handle: self.handle,
             full_ast: true,
@@ -115,7 +116,7 @@ impl HighLevelILFunction {
         .to_owned()
     }
 
-    pub fn as_non_ast(&self) -> Ref<HighLevelILFunction> {
+    pub fn as_non_ast(&self) -> HighLevelILFunction {
         Self {
             handle: self.handle,
             full_ast: false,
@@ -124,24 +125,22 @@ impl HighLevelILFunction {
     }
 }
 
-impl ToOwned for HighLevelILFunction {
-    type Owned = Ref<Self>;
-
-    fn to_owned(&self) -> Self::Owned {
-        unsafe { RefCountable::inc_ref(self) }
+impl Clone for HighLevelILFunction {
+    fn clone(&self) -> Self {
+        unsafe {
+            Self::from_raw(
+                BNNewHighLevelILFunctionReference(self.handle),
+                self.full_ast,
+            )
+        }
     }
 }
 
-unsafe impl RefCountable for HighLevelILFunction {
-    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Ref::new(Self {
-            handle: BNNewHighLevelILFunctionReference(handle.handle),
-            full_ast: handle.full_ast,
-        })
-    }
-
-    unsafe fn dec_ref(handle: &Self) {
-        BNFreeHighLevelILFunction(handle.handle);
+impl Drop for HighLevelILFunction {
+    fn drop(&mut self) {
+        unsafe {
+            BNFreeHighLevelILFunction(self.handle);
+        }
     }
 }
 

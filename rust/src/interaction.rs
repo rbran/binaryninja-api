@@ -21,7 +21,6 @@ use std::os::raw::{c_char, c_void};
 use std::path::PathBuf;
 
 use crate::binaryview::BinaryView;
-use crate::rc::Ref;
 use crate::string::{BnStrCompatible, BnString};
 
 pub fn get_text_line_input(prompt: &str, title: &str) -> Option<String> {
@@ -286,7 +285,7 @@ impl FormInputBuilder {
     pub fn address_field(
         mut self,
         prompt: &str,
-        view: Option<Ref<BinaryView>>,
+        view: Option<BinaryView>,
         current_address: Option<u64>,
         default: Option<u64>,
     ) -> Self {
@@ -297,8 +296,7 @@ impl FormInputBuilder {
         result.prompt = prompt.as_ref().as_ptr() as *const c_char;
         if let Some(view) = view {
             // the view is being moved into result, there is no need to clone
-            // and drop is intentionally being avoided with `Ref::into_raw`
-            result.view = unsafe { Ref::into_raw(view) }.handle;
+            result.view = view.handle;
         }
         result.currentAddress = current_address.unwrap_or(0);
         result.hasDefault = default.is_some();

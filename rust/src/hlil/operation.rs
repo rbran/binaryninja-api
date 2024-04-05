@@ -1,15 +1,14 @@
 use binaryninjacore_sys::BNGetGotoLabelName;
 
 use crate::function::Function;
-use crate::rc::Ref;
 use crate::types::{ConstantData, ILIntrinsic, SSAVariable, Variable};
 
 use super::HighLevelILLiftedInstruction;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GotoLabel {
-    pub(crate) function: Ref<Function>,
-    pub target: u64,
+    pub(crate) function: Function,
+    pub(crate) target: u64,
 }
 
 impl GotoLabel {

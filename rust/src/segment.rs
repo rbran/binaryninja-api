@@ -181,23 +181,15 @@ impl Segment {
     }
 }
 
-impl ToOwned for Segment {
-    type Owned = Ref<Self>;
-
-    fn to_owned(&self) -> Self::Owned {
-        unsafe { RefCountable::inc_ref(self) }
+impl Clone for Segment {
+    fn clone(&self) -> Self {
+        unsafe { Self::from_raw(BNNewSegmentReference(self.handle)) }
     }
 }
 
-unsafe impl RefCountable for Segment {
-    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Ref::new(Self {
-            handle: BNNewSegmentReference(handle.handle),
-        })
-    }
-
-    unsafe fn dec_ref(handle: &Self) {
-        BNFreeSegment(handle.handle);
+impl Drop for Segment {
+    fn drop(&mut self) {
+        unsafe { BNFreeSegment(self.handle) }
     }
 }
 

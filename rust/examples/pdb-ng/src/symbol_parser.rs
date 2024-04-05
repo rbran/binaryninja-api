@@ -36,7 +36,6 @@ use binaryninja::architecture::{Architecture, ArchitectureExt, Register};
 use binaryninja::binaryninjacore_sys::BNVariableSourceType;
 use binaryninja::binaryview::BinaryViewBase;
 use binaryninja::demangle::demangle_ms;
-use binaryninja::rc::Ref;
 use binaryninja::types::{
     max_confidence, min_confidence, Conf, ConfMergable, FunctionParameter, QualifiedName,
     StructureBuilder, Type, TypeClass, Variable,
@@ -64,7 +63,7 @@ pub struct ParsedDataSymbol {
     /// Symbol name
     pub name: SymbolNames,
     /// Type if known
-    pub type_: Option<Conf<Ref<Type>>>,
+    pub type_: Option<Conf<Type>>,
 }
 
 /// Parsed functions and function-y symbols
@@ -77,7 +76,7 @@ pub struct ParsedProcedure {
     /// Symbol name
     pub name: SymbolNames,
     /// Function type if known
-    pub type_: Option<Conf<Ref<Type>>>,
+    pub type_: Option<Conf<Type>>,
     /// List of local variables (TODO: use these)
     pub locals: Vec<ParsedVariable>,
 }
@@ -97,7 +96,7 @@ pub struct ParsedVariable {
     /// Variable name
     pub name: String,
     /// Variable type if known
-    pub type_: Option<Conf<Ref<Type>>>,
+    pub type_: Option<Conf<Type>>,
     /// Location(s) where the variable is stored. PDB lets you store a variable in multiple locations
     /// despite binja not really understanding that. Length is probably never zero
     pub storage: Vec<ParsedLocation>,
@@ -866,8 +865,8 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         &self,
         index: SymbolIndex,
         type_index: TypeIndex,
-        demangled_type: Option<Conf<Ref<Type>>>,
-    ) -> Result<(Option<Conf<Ref<Type>>>, Vec<ParsedVariable>)> {
+        demangled_type: Option<Conf<Type>>,
+    ) -> Result<(Option<Conf<Type>>, Vec<ParsedVariable>)> {
         // So generally speaking, here's the information we have:
         // - The function type is usually accurate wrt the parameter locations
         // - The parameter symbols have the names we want for the params
@@ -1191,7 +1190,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         let mut target_name = None;
         let mut thunk_name = None;
 
-        let mut fn_type: Option<Conf<Ref<Type>>> = None;
+        let mut fn_type: Option<Conf<Type>> = None;
 
         // These have the same name as their target, so look that up
         if let Some(syms) = self.addressed_symbols.get(&target_address) {
@@ -1749,7 +1748,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         &self,
         raw_name: &String,
         rva: Rva,
-    ) -> Result<(Option<Conf<Ref<Type>>>, Option<QualifiedName>)> {
+    ) -> Result<(Option<Conf<Type>>, Option<QualifiedName>)> {
         let (mut t, mut name) = match demangle_ms(&self.arch, raw_name.clone(), true) {
             Ok((Some(t), name)) => (Some(Conf::new(t, DEMANGLE_CONFIDENCE)), name),
             Ok((_, name)) => (None, name),
@@ -1829,7 +1828,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                         if let Some(ty) = self.named_types.get(search_type) {
                             // Fallback in case we don't find a specific one
                             t = Some(Conf::new(
-                                Type::named_type_from_type(search_type, ty.as_ref()),
+                                Type::named_type_from_type(search_type, &ty),
                                 max_confidence(),
                             ));
 
@@ -1848,7 +1847,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                                     if let Some(ty) = self.named_types.get(&lengthy_name) {
                                         // Wow!
                                         t = Some(Conf::new(
-                                            Type::named_type_from_type(lengthy_name, ty.as_ref()),
+                                            Type::named_type_from_type(lengthy_name, &ty),
                                             max_confidence(),
                                         ));
                                     } else {
@@ -1883,7 +1882,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
                 if let Some(ty) = self.named_types.get(&vt_name) {
                     t = Some(Conf::new(
-                        Type::named_type_from_type(&vt_name, ty.as_ref()),
+                        Type::named_type_from_type(&vt_name, &ty),
                         max_confidence(),
                     ));
                 } else {
@@ -1895,15 +1894,14 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
                     if let Some(ty) = self.named_types.get(&vt_name) {
                         t = Some(Conf::new(
-                            Type::named_type_from_type(&vt_name, ty.as_ref()),
+                            Type::named_type_from_type(&vt_name, &ty),
                             max_confidence(),
                         ));
                     } else {
                         t = Some(Conf::new(
                             Type::named_type_from_type(
                                 &vt_name,
-                                Type::structure(StructureBuilder::new().finalize().as_ref())
-                                    .as_ref(),
+                                &Type::structure(&StructureBuilder::new().finalize()),
                             ),
                             DEMANGLE_CONFIDENCE,
                         ));
@@ -1935,9 +1933,9 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
     fn make_lengthy_type(
         &self,
-        base_type: &Ref<Type>,
+        base_type: &Type,
         base_address: u64,
-    ) -> Result<Option<(Ref<Type>, usize)>> {
+    ) -> Result<Option<(Type, usize)>> {
         if base_type.type_class() != TypeClass::StructureTypeClass {
             return Ok(None);
         }
@@ -1985,10 +1983,10 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         }
 
         // Make a new copy of the type with the correct element count
-        last_member.ty.contents = Type::array(member_element.as_ref(), element_count);
+        last_member.ty.contents = Type::array(&member_element, element_count);
 
         Ok(Some((
-            Type::structure(StructureBuilder::from(members).finalize().as_ref()),
+            Type::structure(&StructureBuilder::from(members).finalize()),
             element_count as usize,
         )))
     }

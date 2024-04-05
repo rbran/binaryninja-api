@@ -25,7 +25,6 @@ use binaryninja::binaryview::{BinaryView, BinaryViewExt};
 use binaryninja::callingconvention::CallingConvention;
 use binaryninja::debuginfo::{DebugFunctionInfo, DebugInfo};
 use binaryninja::platform::Platform;
-use binaryninja::rc::Ref;
 use binaryninja::settings::Settings;
 use binaryninja::types::{
     min_confidence, Conf, DataVariableAndName, EnumerationBuilder, NamedTypeReference,
@@ -46,26 +45,26 @@ pub struct PDBParserInstance<'a, S: Source<'a> + 'a> {
     /// Default arch of self.bv
     pub(crate) arch: CoreArchitecture,
     /// Default calling convention for self.arch
-    pub(crate) default_cc: Ref<CallingConvention<CoreArchitecture>>,
+    pub(crate) default_cc: CallingConvention<CoreArchitecture>,
     /// Thiscall calling convention for self.bv, or default_cc if we can't find one
-    pub(crate) thiscall_cc: Ref<CallingConvention<CoreArchitecture>>,
+    pub(crate) thiscall_cc: CallingConvention<CoreArchitecture>,
     /// Cdecl calling convention for self.bv, or default_cc if we can't find one
-    pub(crate) cdecl_cc: Ref<CallingConvention<CoreArchitecture>>,
+    pub(crate) cdecl_cc: CallingConvention<CoreArchitecture>,
     /// Default platform of self.bv
-    pub(crate) platform: Ref<Platform>,
+    pub(crate) platform: Platform,
     /// pdb-rs structure for making lifetime hell a real place
     pub(crate) pdb: PDB<'a, S>,
     /// pdb-rs Mapping of modules to addresses for resolving RVAs
     pub(crate) address_map: AddressMap<'a>,
     /// Binja Settings instance (for optimization)
-    pub(crate) settings: Ref<Settings>,
+    pub(crate) settings: Settings,
 
     /// type_parser.rs
 
     /// TypeIndex -> ParsedType enum used during parsing
     pub(crate) indexed_types: HashMap<TypeIndex, ParsedType>,
     /// QName -> Binja Type for finished types
-    pub(crate) named_types: HashMap<String, Ref<Type>>,
+    pub(crate) named_types: HashMap<String, Type>,
     /// Raw (mangled) name -> TypeIndex for resolving forward references
     pub(crate) full_type_indices: HashMap<String, TypeIndex>,
     /// Stack of types we're currently parsing
@@ -120,7 +119,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             .get_default_calling_convention()
             .expect("Expected default calling convention");
 
-        let thiscall_cc = Self::find_calling_convention(platform.as_ref(), "thiscall")
+        let thiscall_cc = Self::find_calling_convention(&platform, "thiscall")
             .unwrap_or(default_cc.clone());
 
         let cdecl_cc = platform
@@ -163,7 +162,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
     ) -> Result<()> {
         self.parse_types(Self::split_progress(&progress, 0, &[1.0, 3.0, 0.5, 0.5]))?;
         for (name, ty) in self.named_types.iter() {
-            self.debug_info.add_type(name, ty.as_ref(), &[]); // TODO : Components
+            self.debug_info.add_type(name, &ty, &[]); // TODO : Components
         }
 
         info!("PDB found {} types", self.named_types.len());
@@ -313,39 +312,39 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 if let Ok(structure) = ty.get_structure() {
                     if let Ok(members) = structure.members() {
                         for member in members {
-                            self.collect_names(member.ty.contents.as_ref(), unknown_names);
+                            self.collect_names(&member.ty.contents, unknown_names);
                         }
                     }
                     if let Ok(bases) = structure.base_structures() {
                         for base in bases {
-                            self.collect_name(base.ty.as_ref(), unknown_names);
+                            self.collect_name(&base.ty, unknown_names);
                         }
                     }
                 }
             }
             TypeClass::PointerTypeClass => {
                 if let Ok(target) = ty.target() {
-                    self.collect_names(target.contents.as_ref(), unknown_names);
+                    self.collect_names(&target.contents, unknown_names);
                 }
             }
             TypeClass::ArrayTypeClass => {
                 if let Ok(element_type) = ty.element_type() {
-                    self.collect_names(element_type.contents.as_ref(), unknown_names);
+                    self.collect_names(&element_type.contents, unknown_names);
                 }
             }
             TypeClass::FunctionTypeClass => {
                 if let Ok(return_value) = ty.return_value() {
-                    self.collect_names(return_value.contents.as_ref(), unknown_names);
+                    self.collect_names(&return_value.contents, unknown_names);
                 }
                 if let Ok(params) = ty.parameters() {
                     for param in params {
-                        self.collect_names(param.t.contents.as_ref(), unknown_names);
+                        self.collect_names(&param.t.contents, unknown_names);
                     }
                 }
             }
             TypeClass::NamedTypeReferenceClass => {
                 if let Ok(ntr) = ty.get_named_type_reference() {
-                    self.collect_name(ntr.as_ref(), unknown_names);
+                    self.collect_name(&ntr, unknown_names);
                 }
             }
             _ => {}
@@ -375,17 +374,17 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 ParsedSymbol::Data(ParsedDataSymbol {
                     type_: Some(type_), ..
                 }) => {
-                    self.collect_names(type_.contents.as_ref(), &mut unknown_names);
+                    self.collect_names(&type_.contents, &mut unknown_names);
                 }
                 ParsedSymbol::Procedure(ParsedProcedure {
                     type_: Some(type_),
                     locals,
                     ..
                 }) => {
-                    self.collect_names(type_.contents.as_ref(), &mut unknown_names);
+                    self.collect_names(&type_.contents, &mut unknown_names);
                     for l in locals {
                         if let Some(ltype) = &l.type_ {
-                            self.collect_names(ltype.contents.as_ref(), &mut unknown_names);
+                            self.collect_names(&ltype.contents, &mut unknown_names);
                         }
                     }
                 }
@@ -403,7 +402,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             match class {
                 NamedTypeReferenceClass::UnknownNamedTypeClass
                 | NamedTypeReferenceClass::TypedefNamedTypeClass => {
-                    self.debug_info.add_type(name, Type::void().as_ref(), &[]); // TODO : Components
+                    self.debug_info.add_type(name, &Type::void(), &[]); // TODO : Components
                 }
                 NamedTypeReferenceClass::ClassNamedTypeClass
                 | NamedTypeReferenceClass::StructNamedTypeClass
@@ -426,7 +425,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
                     self.debug_info.add_type(
                         name,
-                        Type::structure(structure.finalize().as_ref()).as_ref(),
+                        &Type::structure(&structure.finalize()),
                         &[], // TODO : Components
                     );
                 }
@@ -434,12 +433,11 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     let enumeration = EnumerationBuilder::new();
                     self.debug_info.add_type(
                         name,
-                        Type::enumeration(
-                            enumeration.finalize().as_ref(),
+                        &Type::enumeration(
+                            &enumeration.finalize(),
                             self.arch.default_integer_size(),
                             false,
-                        )
-                        .as_ref(),
+                        ),
                         &[], // TODO : Components
                     );
                 }
