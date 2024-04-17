@@ -2450,11 +2450,16 @@ unsafe impl<'a> CoreArrayWrapper<'a> for QualifiedNameTypeAndId {
 //////////////////////////
 // NameAndType
 
-#[repr(transparent)]
-pub struct NameAndType(pub(crate) BNNameAndType);
+#[repr(C)]
+pub struct NameAndType {
+    name: *mut c_char,
+    // Ref and Type are transparent, so is equivalent to `*mut BNType`,
+    // Conf is requivalent to (Ref<Type>, u8)
+    type_confidence: Conf<Ref<Type>>,
+}
 
 impl NameAndType {
-    pub(crate) fn from_raw(raw: &BNNameAndType) -> Self {
+    pub(crate) fn from_raw(raw: &BNNameAndType) -> Ref<Self> {
         Self::new(
             raw_to_string(raw.name).unwrap(),
             unsafe { &Type::ref_from_raw(raw.type_) },
@@ -2464,38 +2469,53 @@ impl NameAndType {
 }
 
 impl NameAndType {
-    pub fn new<S: BnStrCompatible>(name: S, t: &Ref<Type>, confidence: u8) -> Self {
-        Self(BNNameAndType {
-            name: unsafe { BNAllocString(name.into_bytes_with_nul().as_ref().as_ptr() as *mut _) },
-            type_: unsafe { Ref::into_raw(t.to_owned()).handle },
-            typeConfidence: confidence,
-        })
+    pub fn new<S: BnStrCompatible>(name: S, t: &Type, confidence: u8) -> Ref<Self> {
+        unsafe {
+            Ref::new(Self {
+                name: BNAllocString(name.into_bytes_with_nul().as_ref().as_ptr() as *mut _),
+                type_confidence: Conf::new(t.to_owned(), confidence),
+            })
+        }
     }
 
     pub(crate) fn into_raw(self) -> BNNameAndType {
-        self.0
+        unsafe { mem::transmute(self) }
     }
 
     pub fn name(&self) -> &str {
-        let c_str = unsafe { CStr::from_ptr(self.0.name) };
-        c_str.to_str().unwrap()
+        unsafe { CStr::from_ptr(self.name) }.to_str().unwrap()
     }
 
     pub fn t(&self) -> &Type {
-        unsafe { mem::transmute::<_, &Type>(&self.0.type_) }
+        &self.type_confidence.contents
     }
 
-    pub fn type_with_confidence(&self) -> &Conf<Type> {
-        // the struct BNNameAndType contains a Conf inside of it, so this is safe
-        unsafe { mem::transmute::<_, &Conf<Type>>(&self.0.type_) }
+    pub fn type_with_confidence(&self) -> Conf<&Type> {
+        self.type_confidence.as_ref()
     }
 }
 
-impl Drop for NameAndType {
-    fn drop(&mut self) {
+impl ToOwned for NameAndType {
+    type Owned = Ref<Self>;
+
+    fn to_owned(&self) -> Self::Owned {
+        unsafe { RefCountable::inc_ref(self) }
+    }
+}
+
+unsafe impl RefCountable for NameAndType {
+    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
+        Self::new(
+            CStr::from_ptr(handle.name),
+            handle.t(),
+            handle.type_with_confidence().confidence,
+        )
+    }
+
+    unsafe fn dec_ref(handle: &Self) {
         unsafe {
-            BNFreeString(self.0.name);
-            BNFreeType(self.0.type_);
+            BNFreeString(handle.name);
+            RefCountable::dec_ref(handle.t());
         }
     }
 }
@@ -2522,8 +2542,15 @@ unsafe impl<'a> CoreArrayWrapper<'a> for NameAndType {
 //////////////////
 // DataVariable
 
-#[repr(transparent)]
-pub struct DataVariable(pub(crate) BNDataVariable);
+#[repr(C)]
+pub struct DataVariable {
+    address: u64,
+    // Ref and Type are transparent, so is equivalent to `*mut BNType`,
+    type_: Ref<Type>,
+    // Conf<Ref<Type>> is not possible because of this bool
+    auto_discovered: bool,
+    type_confidence: u8,
+}
 
 // impl DataVariable {
 //     pub(crate) fn from_raw(var: &BNDataVariable) -> Self {
@@ -2537,25 +2564,46 @@ pub struct DataVariable(pub(crate) BNDataVariable);
 
 impl DataVariable {
     pub fn address(&self) -> u64 {
-        self.0.address
+        self.address
     }
 
     pub fn auto_discovered(&self) -> &bool {
-        unsafe { mem::transmute(&self.0.autoDiscovered) }
+        unsafe { mem::transmute(&self.auto_discovered) }
     }
 
     pub fn t(&self) -> &Type {
-        unsafe { mem::transmute(&self.0.type_) }
+        &self.type_
     }
 
-    pub fn type_with_confidence(&self) -> Conf<Ref<Type>> {
-        // if it was not for the `autoDiscovered: bool` between `type_` and
-        // `typeConfidence` this could have being a reference, like NameAndType
-        Conf::new(self.t().to_owned(), self.0.typeConfidence)
+    pub fn type_with_confidence(&self) -> Conf<&Type> {
+        Conf::new(self.t(), self.type_confidence)
     }
 
     pub fn symbol(&self, bv: &BinaryView) -> Option<Ref<Symbol>> {
-        bv.symbol_by_address(self.0.address).ok()
+        bv.symbol_by_address(self.address).ok()
+    }
+}
+
+impl ToOwned for DataVariable {
+    type Owned = Ref<Self>;
+
+    fn to_owned(&self) -> Self::Owned {
+        unsafe { RefCountable::inc_ref(self) }
+    }
+}
+
+unsafe impl RefCountable for DataVariable {
+    unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
+        Ref::new(Self {
+            address: handle.address,
+            type_: handle.type_.to_owned(),
+            auto_discovered: handle.auto_discovered,
+            type_confidence: handle.type_confidence,
+        })
+    }
+
+    unsafe fn dec_ref(handle: &Self) {
+        unsafe { RefCountable::dec_ref(handle.type_.as_ref()) }
     }
 }
 
