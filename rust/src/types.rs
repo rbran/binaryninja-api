@@ -91,6 +91,84 @@ impl<T> Conf<T> {
     }
 }
 
+impl Conf<Ref<Type>> {
+    pub(crate) fn from_raw_type_with_confidence(
+        type_with_confidence: BNTypeWithConfidence,
+    ) -> Self {
+        Self::new(
+            unsafe { Type::ref_from_raw(type_with_confidence.type_) },
+            type_with_confidence.confidence,
+        )
+    }
+}
+
+impl Conf<&Type> {
+    pub(crate) fn into_raw_type_with_confidence(&self) -> BNTypeWithConfidence {
+        BNTypeWithConfidence {
+            type_: self.contents.handle,
+            confidence: self.confidence,
+        }
+    }
+}
+
+impl Conf<bool> {
+    pub(crate) fn from_raw_bool_with_confidence(
+        bool_with_confidence: BNBoolWithConfidence,
+    ) -> Self {
+        Self::new(bool_with_confidence.value, bool_with_confidence.confidence)
+    }
+    pub(crate) fn into_raw_bool_with_confidence(&self) -> BNBoolWithConfidence {
+        BNBoolWithConfidence {
+            value: self.contents,
+            confidence: self.confidence,
+        }
+    }
+}
+
+impl Conf<Ref<CallingConvention<CoreArchitecture>>> {
+    pub(crate) fn from_raw_cc_with_confidence(
+        cc_with_confidence: BNCallingConventionWithConfidence,
+    ) -> Self {
+        Self::new(
+            unsafe {
+                CallingConvention::ref_from_raw(
+                    cc_with_confidence.convention,
+                    CoreArchitecture::from_raw(BNGetCallingConventionArchitecture(
+                        cc_with_confidence.convention,
+                    )),
+                )
+            },
+            cc_with_confidence.confidence,
+        )
+    }
+}
+
+impl<'a, A: Architecture> Conf<&'a CallingConvention<A>> {
+    pub(crate) fn into_raw_cc_with_confidence(&self) -> BNCallingConventionWithConfidence {
+        BNCallingConventionWithConfidence {
+            convention: self.contents.handle,
+            confidence: self.confidence,
+        }
+    }
+}
+
+impl Conf<i64> {
+    pub(crate) fn from_raw_offset_with_confidence(
+        offset_with_confidence: BNOffsetWithConfidence,
+    ) -> Self {
+        Self::new(
+            offset_with_confidence.value,
+            offset_with_confidence.confidence,
+        )
+    }
+    pub(crate) fn into_raw_offset_with_confidence(&self) -> BNOffsetWithConfidence {
+        BNOffsetWithConfidence {
+            value: self.contents,
+            confidence: self.confidence,
+        }
+    }
+}
+
 /// Returns best value or LHS on tie
 ///
 /// `Conf<T>` + `Conf<T>` → `Conf<T>`
@@ -220,91 +298,6 @@ impl<T> From<T> for Conf<T> {
     }
 }
 
-impl From<BNTypeWithConfidence> for Conf<Ref<Type>> {
-    fn from(type_with_confidence: BNTypeWithConfidence) -> Self {
-        Self::new(
-            unsafe { Type::ref_from_raw(type_with_confidence.type_) },
-            type_with_confidence.confidence,
-        )
-    }
-}
-
-impl From<BNBoolWithConfidence> for Conf<bool> {
-    fn from(bool_with_confidence: BNBoolWithConfidence) -> Self {
-        Self::new(bool_with_confidence.value, bool_with_confidence.confidence)
-    }
-}
-
-impl From<BNCallingConventionWithConfidence> for Conf<Ref<CallingConvention<CoreArchitecture>>> {
-    fn from(cc_with_confidence: BNCallingConventionWithConfidence) -> Self {
-        Self::new(
-            unsafe {
-                CallingConvention::ref_from_raw(
-                    cc_with_confidence.convention,
-                    CoreArchitecture::from_raw(BNGetCallingConventionArchitecture(
-                        cc_with_confidence.convention,
-                    )),
-                )
-            },
-            cc_with_confidence.confidence,
-        )
-    }
-}
-
-impl From<BNOffsetWithConfidence> for Conf<i64> {
-    fn from(offset_with_confidence: BNOffsetWithConfidence) -> Self {
-        Self::new(
-            offset_with_confidence.value,
-            offset_with_confidence.confidence,
-        )
-    }
-}
-
-impl From<Conf<Ref<Type>>> for BNTypeWithConfidence {
-    fn from(conf: Conf<Ref<Type>>) -> Self {
-        Self {
-            type_: conf.contents.handle,
-            confidence: conf.confidence,
-        }
-    }
-}
-
-impl From<Conf<&Type>> for BNTypeWithConfidence {
-    fn from(conf: Conf<&Type>) -> Self {
-        Self {
-            type_: conf.contents.handle,
-            confidence: conf.confidence,
-        }
-    }
-}
-
-impl From<Conf<bool>> for BNBoolWithConfidence {
-    fn from(conf: Conf<bool>) -> Self {
-        Self {
-            value: conf.contents,
-            confidence: conf.confidence,
-        }
-    }
-}
-
-impl<A: Architecture> From<Conf<&CallingConvention<A>>> for BNCallingConventionWithConfidence {
-    fn from(conf: Conf<&CallingConvention<A>>) -> Self {
-        Self {
-            convention: conf.contents.handle,
-            confidence: conf.confidence,
-        }
-    }
-}
-
-impl From<Conf<i64>> for BNOffsetWithConfidence {
-    fn from(conf: Conf<i64>) -> Self {
-        Self {
-            value: conf.contents,
-            confidence: conf.confidence,
-        }
-    }
-}
-
 //////////////////
 // Type Builder
 
@@ -331,25 +324,25 @@ impl TypeBuilder {
     // Settable properties
 
     pub fn set_can_return<T: Into<Conf<bool>>>(&self, value: T) -> &Self {
-        let mut bool_with_confidence = value.into().into();
+        let mut bool_with_confidence = value.into().into_raw_bool_with_confidence();
         unsafe { BNSetFunctionTypeBuilderCanReturn(self.handle, &mut bool_with_confidence) };
         self
     }
 
     pub fn set_pure<T: Into<Conf<bool>>>(&self, value: T) -> &Self {
-        let mut bool_with_confidence = value.into().into();
+        let mut bool_with_confidence = value.into().into_raw_bool_with_confidence();
         unsafe { BNSetTypeBuilderPure(self.handle, &mut bool_with_confidence) };
         self
     }
 
     pub fn set_const<T: Into<Conf<bool>>>(&self, value: T) -> &Self {
-        let mut bool_with_confidence = value.into().into();
+        let mut bool_with_confidence = value.into().into_raw_bool_with_confidence();
         unsafe { BNTypeBuilderSetConst(self.handle, &mut bool_with_confidence) };
         self
     }
 
     pub fn set_volatile<T: Into<Conf<bool>>>(&self, value: T) -> &Self {
-        let mut bool_with_confidence = value.into().into();
+        let mut bool_with_confidence = value.into().into_raw_bool_with_confidence();
         unsafe { BNTypeBuilderSetVolatile(self.handle, &mut bool_with_confidence) };
         self
     }
@@ -369,15 +362,15 @@ impl TypeBuilder {
     }
 
     pub fn is_signed(&self) -> Conf<bool> {
-        unsafe { BNIsTypeBuilderSigned(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNIsTypeBuilderSigned(self.handle)) }
     }
 
     pub fn is_const(&self) -> Conf<bool> {
-        unsafe { BNIsTypeBuilderConst(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNIsTypeBuilderConst(self.handle)) }
     }
 
     pub fn is_volatile(&self) -> Conf<bool> {
-        unsafe { BNIsTypeBuilderVolatile(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNIsTypeBuilderVolatile(self.handle)) }
     }
 
     pub fn is_floating_point(&self) -> bool {
@@ -389,7 +382,7 @@ impl TypeBuilder {
         if raw_target.type_.is_null() {
             Err(())
         } else {
-            Ok(raw_target.into())
+            Ok(Conf::from_raw_type_with_confidence(raw_target))
         }
     }
 
@@ -398,7 +391,7 @@ impl TypeBuilder {
         if raw_target.type_.is_null() {
             Err(())
         } else {
-            Ok(raw_target.into())
+            Ok(Conf::from_raw_type_with_confidence(raw_target))
         }
     }
 
@@ -407,7 +400,7 @@ impl TypeBuilder {
         if raw_target.type_.is_null() {
             Err(())
         } else {
-            Ok(raw_target.into())
+            Ok(Conf::from_raw_type_with_confidence(raw_target))
         }
     }
 
@@ -416,7 +409,7 @@ impl TypeBuilder {
         if convention_confidence.convention.is_null() {
             Err(())
         } else {
-            Ok(convention_confidence.into())
+            Ok(Conf::from_raw_cc_with_confidence(convention_confidence))
         }
     }
 
@@ -442,15 +435,17 @@ impl TypeBuilder {
     }
 
     pub fn has_variable_arguments(&self) -> Conf<bool> {
-        unsafe { BNTypeBuilderHasVariableArguments(self.handle).into() }
+        unsafe {
+            Conf::from_raw_bool_with_confidence(BNTypeBuilderHasVariableArguments(self.handle))
+        }
     }
 
     pub fn can_return(&self) -> Conf<bool> {
-        unsafe { BNFunctionTypeBuilderCanReturn(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNFunctionTypeBuilderCanReturn(self.handle)) }
     }
 
     pub fn pure(&self) -> Conf<bool> {
-        unsafe { BNIsTypeBuilderPure(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNIsTypeBuilderPure(self.handle)) }
     }
 
     pub fn get_structure(&self) -> Result<Ref<Structure>> {
@@ -489,7 +484,9 @@ impl TypeBuilder {
     }
 
     pub fn stack_adjustment(&self) -> Conf<i64> {
-        unsafe { BNGetTypeBuilderStackAdjustment(self.handle).into() }
+        unsafe {
+            Conf::from_raw_offset_with_confidence(BNGetTypeBuilderStackAdjustment(self.handle))
+        }
     }
 
     // TODO : This and properties
@@ -508,7 +505,7 @@ impl TypeBuilder {
     }
 
     pub fn int(width: usize, is_signed: bool) -> Self {
-        let mut is_signed = Conf::new(is_signed, max_confidence()).into();
+        let mut is_signed = Conf::new(is_signed, max_confidence()).into_raw_bool_with_confidence();
 
         unsafe {
             Self::from_raw(BNCreateIntegerTypeBuilder(
@@ -520,7 +517,7 @@ impl TypeBuilder {
     }
 
     pub fn named_int<S: BnStrCompatible>(width: usize, is_signed: bool, alt_name: S) -> Self {
-        let mut is_signed = Conf::new(is_signed, max_confidence()).into();
+        let mut is_signed = Conf::new(is_signed, max_confidence()).into_raw_bool_with_confidence();
         // let alt_name = BnString::new(alt_name);
         let alt_name = alt_name.into_bytes_with_nul(); // This segfaulted once, so the above version is there if we need to change to it, but in theory this is copied into a `const string&` on the C++ side; I'm just not 100% confident that a constant reference copies data
 
@@ -555,7 +552,8 @@ impl TypeBuilder {
     }
 
     pub fn array<'a, T: Into<Conf<&'a Type>>>(t: T, count: u64) -> Self {
-        unsafe { Self::from_raw(BNCreateArrayTypeBuilder(&t.into().into(), count)) }
+        let t = t.into().into_raw_type_with_confidence();
+        unsafe { Self::from_raw(BNCreateArrayTypeBuilder(&t, count)) }
     }
 
     /// The C/C++ APIs require an associated architecture, but in the core we only query the default_int_size if the given width is 0
@@ -565,6 +563,7 @@ impl TypeBuilder {
         width: usize,
         is_signed: T,
     ) -> Self {
+        let mut is_signed = is_signed.into().into_raw_bool_with_confidence();
         unsafe {
             // TODO : This is _extremely fragile_, we should change the internals of BNCreateEnumerationTypeBuilder instead of doing this
             let mut fake_arch: BNArchitecture = mem::zeroed();
@@ -572,7 +571,7 @@ impl TypeBuilder {
                 &mut fake_arch,
                 enumeration.handle,
                 width,
-                &mut is_signed.into().into(),
+                &mut is_signed,
             ))
         }
     }
@@ -582,8 +581,9 @@ impl TypeBuilder {
     }
 
     pub fn named_type(type_reference: NamedTypeReference) -> Self {
-        let mut is_const = Conf::new(false, min_confidence()).into();
-        let mut is_volatile = Conf::new(false, min_confidence()).into();
+        let mut is_const = Conf::new(false, min_confidence()).into_raw_bool_with_confidence();
+        let mut is_volatile = Conf::new(false, min_confidence()).into_raw_bool_with_confidence();
+
         unsafe {
             Self::from_raw(BNCreateNamedTypeReferenceBuilder(
                 type_reference.handle,
@@ -610,33 +610,23 @@ impl TypeBuilder {
     // TODO : BNCreateFunctionTypeBuilder
 
     pub fn pointer<'a, A: Architecture, T: Into<Conf<&'a Type>>>(arch: &A, t: T) -> Self {
-        let mut is_const = Conf::new(false, min_confidence()).into();
-        let mut is_volatile = Conf::new(false, min_confidence()).into();
-
-        unsafe {
-            Self::from_raw(BNCreatePointerTypeBuilder(
-                arch.as_ref().0,
-                &t.into().into(),
-                &mut is_const,
-                &mut is_volatile,
-                ReferenceType::PointerReferenceType,
-            ))
-        }
+        Self::inner_pointer_with_options(
+            arch,
+            t.into(),
+            Conf::new(false, min_confidence()),
+            Conf::new(false, min_confidence()),
+            ReferenceType::PointerReferenceType,
+        )
     }
 
     pub fn const_pointer<'a, A: Architecture, T: Into<Conf<&'a Type>>>(arch: &A, t: T) -> Self {
-        let mut is_const = Conf::new(true, max_confidence()).into();
-        let mut is_volatile = Conf::new(false, min_confidence()).into();
-
-        unsafe {
-            Self::from_raw(BNCreatePointerTypeBuilder(
-                arch.as_ref().0,
-                &t.into().into(),
-                &mut is_const,
-                &mut is_volatile,
-                ReferenceType::PointerReferenceType,
-            ))
-        }
+        Self::inner_pointer_with_options(
+            arch,
+            t.into(),
+            Conf::new(true, max_confidence()),
+            Conf::new(false, min_confidence()),
+            ReferenceType::PointerReferenceType,
+        )
     }
 
     pub fn pointer_of_width<'a, T: Into<Conf<&'a Type>>>(
@@ -646,13 +636,16 @@ impl TypeBuilder {
         is_volatile: bool,
         ref_type: Option<ReferenceType>,
     ) -> Self {
-        let mut is_const = Conf::new(is_const, max_confidence()).into();
-        let mut is_volatile = Conf::new(is_volatile, max_confidence()).into();
+        let t = t.into().into_raw_type_with_confidence();
+
+        let mut is_const = Conf::new(is_const, max_confidence()).into_raw_bool_with_confidence();
+        let mut is_volatile =
+            Conf::new(is_volatile, max_confidence()).into_raw_bool_with_confidence();
 
         unsafe {
             Self::from_raw(BNCreatePointerTypeBuilderOfWidth(
                 size,
-                &t.into().into(),
+                &t,
                 &mut is_const,
                 &mut is_volatile,
                 ref_type.unwrap_or(ReferenceType::PointerReferenceType),
@@ -667,15 +660,33 @@ impl TypeBuilder {
         is_volatile: bool,
         ref_type: Option<ReferenceType>,
     ) -> Self {
-        let mut is_const = Conf::new(is_const, max_confidence()).into();
-        let mut is_volatile = Conf::new(is_volatile, max_confidence()).into();
+        Self::inner_pointer_with_options(
+            arch,
+            t.into(),
+            Conf::new(is_const, max_confidence()),
+            Conf::new(is_volatile, max_confidence()),
+            ref_type.unwrap_or(ReferenceType::PointerReferenceType),
+        )
+    }
+
+    fn inner_pointer_with_options<'a, A: Architecture>(
+        arch: &A,
+        t: Conf<&'a Type>,
+        is_const: Conf<bool>,
+        is_volatile: Conf<bool>,
+        ref_type: ReferenceType,
+    ) -> Self {
+        let t = t.into_raw_type_with_confidence();
+        let mut is_const_raw = is_const.into_raw_bool_with_confidence();
+        let mut is_volatile_raw = is_volatile.into_raw_bool_with_confidence();
+
         unsafe {
             Self::from_raw(BNCreatePointerTypeBuilder(
                 arch.as_ref().0,
-                &t.into().into(),
-                &mut is_const,
-                &mut is_volatile,
-                ref_type.unwrap_or(ReferenceType::PointerReferenceType),
+                &t,
+                &mut is_const_raw,
+                &mut is_volatile_raw,
+                ref_type,
             ))
         }
     }
@@ -740,15 +751,15 @@ impl Type {
     }
 
     pub fn is_signed(&self) -> Conf<bool> {
-        unsafe { BNIsTypeSigned(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNIsTypeSigned(self.handle)) }
     }
 
     pub fn is_const(&self) -> Conf<bool> {
-        unsafe { BNIsTypeConst(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNIsTypeConst(self.handle)) }
     }
 
     pub fn is_volatile(&self) -> Conf<bool> {
-        unsafe { BNIsTypeVolatile(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNIsTypeVolatile(self.handle)) }
     }
 
     pub fn is_floating_point(&self) -> bool {
@@ -760,7 +771,7 @@ impl Type {
         if raw_target.type_.is_null() {
             Err(())
         } else {
-            Ok(raw_target.into())
+            Ok(Conf::from_raw_type_with_confidence(raw_target))
         }
     }
 
@@ -769,7 +780,7 @@ impl Type {
         if raw_target.type_.is_null() {
             Err(())
         } else {
-            Ok(raw_target.into())
+            Ok(Conf::from_raw_type_with_confidence(raw_target))
         }
     }
 
@@ -778,7 +789,7 @@ impl Type {
         if raw_target.type_.is_null() {
             Err(())
         } else {
-            Ok(raw_target.into())
+            Ok(Conf::from_raw_type_with_confidence(raw_target))
         }
     }
 
@@ -787,7 +798,7 @@ impl Type {
         if convention_confidence.convention.is_null() {
             Err(())
         } else {
-            Ok(convention_confidence.into())
+            Ok(Conf::from_raw_cc_with_confidence(convention_confidence))
         }
     }
 
@@ -814,15 +825,15 @@ impl Type {
     }
 
     pub fn has_variable_arguments(&self) -> Conf<bool> {
-        unsafe { BNTypeHasVariableArguments(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNTypeHasVariableArguments(self.handle)) }
     }
 
     pub fn can_return(&self) -> Conf<bool> {
-        unsafe { BNFunctionTypeCanReturn(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNFunctionTypeCanReturn(self.handle)) }
     }
 
     pub fn pure(&self) -> Conf<bool> {
-        unsafe { BNIsTypePure(self.handle).into() }
+        unsafe { Conf::from_raw_bool_with_confidence(BNIsTypePure(self.handle)) }
     }
 
     pub fn get_structure(&self) -> Result<Ref<Structure>> {
@@ -861,7 +872,7 @@ impl Type {
     }
 
     pub fn stack_adjustment(&self) -> Conf<i64> {
-        unsafe { BNGetTypeStackAdjustment(self.handle).into() }
+        unsafe { Conf::from_raw_offset_with_confidence(BNGetTypeStackAdjustment(self.handle)) }
     }
 
     pub fn registered_name(&self) -> Result<Ref<NamedTypeReference>> {
@@ -898,7 +909,7 @@ impl Type {
     }
 
     pub fn int(width: usize, is_signed: bool) -> Ref<Self> {
-        let mut is_signed = Conf::new(is_signed, max_confidence()).into();
+        let mut is_signed = Conf::new(is_signed, max_confidence()).into_raw_bool_with_confidence();
         unsafe {
             Self::ref_from_raw(BNCreateIntegerType(
                 width,
@@ -909,7 +920,7 @@ impl Type {
     }
 
     pub fn named_int<S: BnStrCompatible>(width: usize, is_signed: bool, alt_name: S) -> Ref<Self> {
-        let mut is_signed = Conf::new(is_signed, max_confidence()).into();
+        let mut is_signed = Conf::new(is_signed, max_confidence()).into_raw_bool_with_confidence();
         // let alt_name = BnString::new(alt_name);
         let alt_name = alt_name.into_bytes_with_nul(); // This segfaulted once, so the above version is there if we need to change to it, but in theory this is copied into a `const string&` on the C++ side; I'm just not 100% confident that a constant reference copies data
 
@@ -939,7 +950,8 @@ impl Type {
     }
 
     pub fn array<'a, T: Into<Conf<&'a Type>>>(t: T, count: u64) -> Ref<Self> {
-        unsafe { Self::ref_from_raw(BNCreateArrayType(&t.into().into(), count)) }
+        let t = t.into().into_raw_type_with_confidence();
+        unsafe { Self::ref_from_raw(BNCreateArrayType(&t, count)) }
     }
 
     /// The C/C++ APIs require an associated architecture, but in the core we only query the default_int_size if the given width is 0
@@ -950,6 +962,7 @@ impl Type {
         width: usize,
         is_signed: T,
     ) -> Ref<Self> {
+        let mut is_signed = is_signed.into().into_raw_bool_with_confidence();
         unsafe {
             // TODO : This is _extremely fragile_, we should change the internals of BNCreateEnumerationType instead of doing this
             let mut fake_arch: BNArchitecture = mem::zeroed();
@@ -957,7 +970,7 @@ impl Type {
                 &mut fake_arch,
                 enumeration.handle,
                 width,
-                &mut is_signed.into().into(),
+                &mut is_signed,
             ))
         }
     }
@@ -967,8 +980,8 @@ impl Type {
     }
 
     pub fn named_type(type_reference: &NamedTypeReference) -> Ref<Self> {
-        let mut is_const = Conf::new(false, min_confidence()).into();
-        let mut is_volatile = Conf::new(false, min_confidence()).into();
+        let mut is_const = Conf::new(false, min_confidence()).into_raw_bool_with_confidence();
+        let mut is_volatile = Conf::new(false, min_confidence()).into_raw_bool_with_confidence();
         unsafe {
             Self::ref_from_raw(BNCreateNamedTypeReference(
                 type_reference.handle,
@@ -997,10 +1010,11 @@ impl Type {
         parameters: &[FunctionParameter],
         variable_arguments: bool,
     ) -> Ref<Self> {
-        let mut return_type = return_type.into().into();
-        let mut variable_arguments = Conf::new(variable_arguments, max_confidence()).into();
-        let mut can_return = Conf::new(true, min_confidence()).into();
-        let mut pure = Conf::new(false, min_confidence()).into();
+        let mut return_type = return_type.into().into_raw_type_with_confidence();
+        let mut variable_arguments =
+            Conf::new(variable_arguments, max_confidence()).into_raw_bool_with_confidence();
+        let mut can_return = Conf::new(true, min_confidence()).into_raw_bool_with_confidence();
+        let mut pure = Conf::new(false, min_confidence()).into_raw_bool_with_confidence();
 
         let mut raw_calling_convention: BNCallingConventionWithConfidence =
             BNCallingConventionWithConfidence {
@@ -1008,7 +1022,7 @@ impl Type {
                 confidence: min_confidence(),
             };
 
-        let mut stack_adjust = Conf::<i64>::new(0, min_confidence()).into();
+        let mut stack_adjust = Conf::new(0, min_confidence()).into_raw_offset_with_confidence();
         let mut raw_parameters = Vec::<BNFunctionParameter>::with_capacity(parameters.len());
         let mut parameter_name_references = Vec::with_capacity(parameters.len());
         for parameter in parameters {
@@ -1067,13 +1081,13 @@ impl Type {
         calling_convention: C,
         stack_adjust: Conf<i64>,
     ) -> Ref<Self> {
-        let mut return_type = return_type.into().into();
-        let mut variable_arguments = Conf::new(variable_arguments, max_confidence()).into();
-        let mut can_return = Conf::new(true, min_confidence()).into();
-        let mut pure = Conf::new(false, min_confidence()).into();
-        let mut raw_calling_convention: BNCallingConventionWithConfidence =
-            calling_convention.into().into();
-        let mut stack_adjust = stack_adjust.into();
+        let mut return_type = return_type.into().into_raw_type_with_confidence();
+        let mut variable_arguments =
+            Conf::new(variable_arguments, max_confidence()).into_raw_bool_with_confidence();
+        let mut can_return = Conf::new(true, min_confidence()).into_raw_bool_with_confidence();
+        let mut pure = Conf::new(false, min_confidence()).into_raw_bool_with_confidence();
+        let mut raw_calling_convention = calling_convention.into().into_raw_cc_with_confidence();
+        let mut stack_adjust = stack_adjust.into_raw_offset_with_confidence();
 
         let mut raw_parameters = Vec::<BNFunctionParameter>::with_capacity(parameters.len());
         let mut parameter_name_references = Vec::with_capacity(parameters.len());
@@ -1129,34 +1143,26 @@ impl Type {
     }
 
     pub fn pointer<'a, A: Architecture, T: Into<Conf<&'a Type>>>(arch: &A, t: T) -> Ref<Self> {
-        let mut is_const = Conf::new(false, min_confidence()).into();
-        let mut is_volatile = Conf::new(false, min_confidence()).into();
-        unsafe {
-            Self::ref_from_raw(BNCreatePointerType(
-                arch.as_ref().0,
-                &t.into().into(),
-                &mut is_const,
-                &mut is_volatile,
-                ReferenceType::PointerReferenceType,
-            ))
-        }
+        Self::inner_pointer_with_options(
+            arch,
+            t.into(),
+            Conf::new(false, min_confidence()),
+            Conf::new(false, min_confidence()),
+            ReferenceType::PointerReferenceType,
+        )
     }
 
     pub fn const_pointer<'a, A: Architecture, T: Into<Conf<&'a Type>>>(
         arch: &A,
         t: T,
     ) -> Ref<Self> {
-        let mut is_const = Conf::new(true, max_confidence()).into();
-        let mut is_volatile = Conf::new(false, min_confidence()).into();
-        unsafe {
-            Self::ref_from_raw(BNCreatePointerType(
-                arch.as_ref().0,
-                &t.into().into(),
-                &mut is_const,
-                &mut is_volatile,
-                ReferenceType::PointerReferenceType,
-            ))
-        }
+        Self::inner_pointer_with_options(
+            arch,
+            t.into(),
+            Conf::new(true, max_confidence()),
+            Conf::new(false, min_confidence()),
+            ReferenceType::PointerReferenceType,
+        )
     }
 
     pub fn pointer_of_width<'a, T: Into<Conf<&'a Type>>>(
@@ -1166,12 +1172,14 @@ impl Type {
         is_volatile: bool,
         ref_type: Option<ReferenceType>,
     ) -> Ref<Self> {
-        let mut is_const = Conf::new(is_const, max_confidence()).into();
-        let mut is_volatile = Conf::new(is_volatile, max_confidence()).into();
+        let t = t.into().into_raw_type_with_confidence();
+        let mut is_const = Conf::new(is_const, max_confidence()).into_raw_bool_with_confidence();
+        let mut is_volatile =
+            Conf::new(is_volatile, max_confidence()).into_raw_bool_with_confidence();
         unsafe {
             Self::ref_from_raw(BNCreatePointerTypeOfWidth(
                 size,
-                &t.into().into(),
+                &t,
                 &mut is_const,
                 &mut is_volatile,
                 ref_type.unwrap_or(ReferenceType::PointerReferenceType),
@@ -1186,15 +1194,32 @@ impl Type {
         is_volatile: bool,
         ref_type: Option<ReferenceType>,
     ) -> Ref<Self> {
-        let mut is_const = Conf::new(is_const, max_confidence()).into();
-        let mut is_volatile = Conf::new(is_volatile, max_confidence()).into();
+        Self::inner_pointer_with_options(
+            arch,
+            t.into(),
+            Conf::new(is_const, max_confidence()),
+            Conf::new(is_volatile, max_confidence()),
+            ref_type.unwrap_or(ReferenceType::PointerReferenceType),
+        )
+    }
+
+    pub fn inner_pointer_with_options<'a, A: Architecture>(
+        arch: &A,
+        t: Conf<&'a Type>,
+        is_const: Conf<bool>,
+        is_volatile: Conf<bool>,
+        ref_type: ReferenceType,
+    ) -> Ref<Self> {
+        let t = t.into_raw_type_with_confidence();
+        let mut is_const = is_const.into_raw_bool_with_confidence();
+        let mut is_volatile = is_volatile.into_raw_bool_with_confidence();
         unsafe {
             Self::ref_from_raw(BNCreatePointerType(
                 arch.as_ref().0,
-                &t.into().into(),
+                &t,
                 &mut is_const,
                 &mut is_volatile,
-                ref_type.unwrap_or(ReferenceType::PointerReferenceType),
+                ref_type,
             ))
         }
     }
@@ -1758,11 +1783,12 @@ impl StructureBuilder {
         access: MemberAccess,
         scope: MemberScope,
     ) -> &Self {
+        let t = t.into().into_raw_type_with_confidence();
         let name = name.into_bytes_with_nul();
         unsafe {
             BNAddStructureBuilderMember(
                 self.handle,
-                &t.into().into(),
+                &t,
                 name.as_ref().as_ptr() as _,
                 access,
                 scope,
@@ -1794,11 +1820,12 @@ impl StructureBuilder {
         access: MemberAccess,
         scope: MemberScope,
     ) -> &Self {
+        let t = t.into().into_raw_type_with_confidence();
         let name = name.into_bytes_with_nul();
         unsafe {
             BNAddStructureBuilderMemberAtOffset(
                 self.handle,
-                &t.into().into(),
+                &t,
                 name.as_ref().as_ptr() as _,
                 offset,
                 overwrite_existing,

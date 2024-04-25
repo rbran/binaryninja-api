@@ -1017,7 +1017,7 @@ impl Intrinsic for crate::architecture::CoreIntrinsic {
 
             let ret = slice::from_raw_parts_mut(inputs, count)
                 .iter()
-                .map(|input| (*input).into())
+                .map(|input| Conf::from_raw_type_with_confidence(*input))
                 .collect();
 
             BNFreeOutputTypeList(inputs, count);
@@ -1172,7 +1172,7 @@ impl Architecture for CoreArchitecture {
             }
         }
     }
-    
+
     fn instruction_llil(
         &self,
         data: &[u8],
@@ -2475,7 +2475,7 @@ where
             let inputs = intrinsic.outputs();
             let mut res = Vec::with_capacity(inputs.len());
             for input in inputs {
-                res.push(input.into());
+                res.push(input.as_ref().into_raw_type_with_confidence());
             }
 
             unsafe {

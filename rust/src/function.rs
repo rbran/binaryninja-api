@@ -184,12 +184,12 @@ impl Function {
     }
 
     pub fn set_can_return_auto<T: Into<Conf<bool>>>(&self, can_return: T) {
-        let mut bool_with_confidence = can_return.into().into();
+        let mut bool_with_confidence = can_return.into().into_raw_bool_with_confidence();
         unsafe { BNSetAutoFunctionCanReturn(self.handle, &mut bool_with_confidence) }
     }
 
     pub fn set_can_return_user<T: Into<Conf<bool>>>(&self, can_return: T) {
-        let mut bool_with_confidence = can_return.into().into();
+        let mut bool_with_confidence = can_return.into().into_raw_bool_with_confidence();
         unsafe { BNSetAutoFunctionCanReturn(self.handle, &mut bool_with_confidence) }
     }
 
