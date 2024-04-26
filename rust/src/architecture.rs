@@ -1162,17 +1162,18 @@ impl Architecture for CoreArchitecture {
                 &mut result as *mut _,
                 &mut count as *mut _,
             ) {
-                let vec = Vec::<BNInstructionTextToken>::from_raw_parts(result, count, count)
+                let vec = slice::from_raw_parts(result, count)
                     .iter()
-                    .map(|x| InstructionTextToken::from_raw(x))
+                    .map(|x| InstructionTextToken::from_raw(x).clone())
                     .collect();
+                BNFreeInstructionText(result, count);
                 Some((consumed, vec))
             } else {
                 None
             }
         }
     }
-    
+
     fn instruction_llil(
         &self,
         data: &[u8],
