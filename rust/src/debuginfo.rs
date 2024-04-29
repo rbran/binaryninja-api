@@ -89,12 +89,6 @@ pub struct DebugInfoParser {
 }
 
 impl DebugInfoParser {
-    pub(crate) unsafe fn from_raw(handle: *mut BNDebugInfoParser) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     /// Returns debug info parser of the given name, if it exists
     pub fn from_name<S: BnStrCompatible>(name: S) -> Result<Ref<Self>, ()> {
         let name = name.into_bytes_with_nul();
@@ -247,6 +241,13 @@ impl DebugInfoParser {
 }
 
 unsafe impl RefCountable for DebugInfoParser {
+    type Raw = *mut BNDebugInfoParser;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewDebugInfoParserReference(handle.handle),
@@ -309,13 +310,13 @@ impl From<&BNDebugFunctionInfo> for DebugFunctionInfo {
             type_: if raw.type_.is_null() {
                 None
             } else {
-                Some(unsafe { Type::ref_from_raw(raw.type_) })
+                Some(unsafe { Type::from_raw(raw.type_) })
             },
             address: raw.address,
             platform: if raw.platform.is_null() {
                 None
             } else {
-                Some(unsafe { Platform::ref_from_raw(raw.platform) })
+                Some(unsafe { Platform::from_raw(raw.platform) })
             },
             components,
         }
@@ -369,12 +370,6 @@ pub struct DebugInfo {
 }
 
 impl DebugInfo {
-    pub(crate) unsafe fn from_raw(handle: *mut BNDebugInfo) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     /// Returns a generator of all types provided by a named DebugInfoParser
     pub fn types_by_name<S: BnStrCompatible>(&self, parser_name: S) -> Vec<NameAndType<String>> {
         let parser_name = parser_name.into_bytes_with_nul();
@@ -414,10 +409,7 @@ impl DebugInfo {
     }
 
     /// Returns a generator of all functions provided by a named DebugInfoParser
-    pub fn functions_by_name<S: BnStrCompatible>(
-        &self,
-        parser_name: S,
-    ) -> Vec<DebugFunctionInfo> {
+    pub fn functions_by_name<S: BnStrCompatible>(&self, parser_name: S) -> Vec<DebugFunctionInfo> {
         let parser_name = parser_name.into_bytes_with_nul();
 
         let mut count: usize = 0;
@@ -514,7 +506,7 @@ impl DebugInfo {
             )
         };
         if !result.is_null() {
-            Some(unsafe { Type::ref_from_raw(result) })
+            Some(unsafe { Type::from_raw(result) })
         } else {
             None
         }
@@ -538,7 +530,7 @@ impl DebugInfo {
 
         if !result.is_null() {
             unsafe { BNFreeString((*result).name) };
-            Some(unsafe { ((*result).address, Type::ref_from_raw((*result).type_)) })
+            Some(unsafe { ((*result).address, Type::from_raw((*result).type_)) })
         } else {
             None
         }
@@ -562,7 +554,7 @@ impl DebugInfo {
             let result = unsafe {
                 (
                     raw_to_string((*name_and_var).name).unwrap(),
-                    Type::ref_from_raw((*name_and_var).type_),
+                    Type::from_raw((*name_and_var).type_),
                 )
             };
             unsafe { BNFreeString((*name_and_var).name) };
@@ -590,7 +582,7 @@ impl DebugInfo {
             .map(|&name_and_type| unsafe {
                 (
                     raw_to_string((*name_and_type).name).unwrap(),
-                    Type::ref_from_raw(BNNewTypeReference((*name_and_type).type_)),
+                    Type::from_raw(BNNewTypeReference((*name_and_type).type_)),
                 )
             })
             .collect();
@@ -621,7 +613,7 @@ impl DebugInfo {
                 (
                     raw_to_string((*variable_and_name).name).unwrap(),
                     (*variable_and_name).address,
-                    Type::ref_from_raw(BNNewTypeReference((*variable_and_name).type_)),
+                    Type::from_raw(BNNewTypeReference((*variable_and_name).type_)),
                 )
             })
             .collect();
@@ -646,7 +638,7 @@ impl DebugInfo {
                 (
                     raw_to_string((*variable_and_name).parser).unwrap(),
                     raw_to_string((*variable_and_name).name).unwrap(),
-                    Type::ref_from_raw(BNNewTypeReference((*variable_and_name).type_)),
+                    Type::from_raw(BNNewTypeReference((*variable_and_name).type_)),
                 )
             })
             .collect();
@@ -758,21 +750,15 @@ impl DebugInfo {
         let short_name_bytes = new_func.short_name.map(|name| name.into_bytes_with_nul());
         let short_name = short_name_bytes
             .as_ref()
-            .map_or(ptr::null_mut() as *mut _, |name| {
-                name.as_ptr() as _
-            });
+            .map_or(ptr::null_mut() as *mut _, |name| name.as_ptr() as _);
         let full_name_bytes = new_func.full_name.map(|name| name.into_bytes_with_nul());
         let full_name = full_name_bytes
             .as_ref()
-            .map_or(ptr::null_mut() as *mut _, |name| {
-                name.as_ptr() as _
-            });
+            .map_or(ptr::null_mut() as *mut _, |name| name.as_ptr() as _);
         let raw_name_bytes = new_func.raw_name.map(|name| name.into_bytes_with_nul());
         let raw_name = raw_name_bytes
             .as_ref()
-            .map_or(ptr::null_mut() as *mut _, |name| {
-                name.as_ptr() as _
-            });
+            .map_or(ptr::null_mut() as *mut _, |name| name.as_ptr() as _);
 
         let mut components_array: Vec<*const ::std::os::raw::c_char> =
             Vec::with_capacity(new_func.components.len());
@@ -862,6 +848,13 @@ impl DebugInfo {
 }
 
 unsafe impl RefCountable for DebugInfo {
+    type Raw = *mut BNDebugInfo;
+    unsafe fn from_raw(handle: *mut BNDebugInfo) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewDebugInfoReference(handle.handle),

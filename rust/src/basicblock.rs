@@ -81,14 +81,17 @@ unsafe impl<'a, C: 'a + BlockContext> CoreArrayWrapper<'a> for Edge<'a, C> {
 
     unsafe fn wrap_raw(raw: &'a Self::Raw, context: &'a Self::Context) -> Edge<'a, C> {
         let edge_target = Guard::new(
-            BasicBlock::from_raw(raw.target, context.orig_block.context.clone()),
+            BasicBlock {
+                handle: raw.target,
+                context: context.orig_block.context.clone(),
+            },
             raw,
         );
         let orig_block = Guard::new(
-            BasicBlock::from_raw(
-                context.orig_block.handle,
-                context.orig_block.context.clone(),
-            ),
+            BasicBlock {
+                handle: context.orig_block.handle,
+                context: context.orig_block.context.clone(),
+            },
             raw,
         );
 
@@ -124,10 +127,6 @@ unsafe impl<C: BlockContext> Send for BasicBlock<C> {}
 unsafe impl<C: BlockContext> Sync for BasicBlock<C> {}
 
 impl<C: BlockContext> BasicBlock<C> {
-    pub(crate) unsafe fn from_raw(handle: *mut BNBasicBlock, context: C) -> Self {
-        Self { handle, context }
-    }
-
     // TODO native bb vs il bbs
     pub fn function(&self) -> Ref<Function> {
         unsafe {
@@ -212,7 +211,7 @@ impl<C: BlockContext> BasicBlock<C> {
                 return None;
             }
 
-            Some(Ref::new(BasicBlock::from_raw(block, self.context.clone())))
+            Some(BasicBlock::from_raw((block, self.context.clone())))
         }
     }
 
@@ -286,6 +285,11 @@ impl<C: BlockContext> ToOwned for BasicBlock<C> {
 }
 
 unsafe impl<C: BlockContext> RefCountable for BasicBlock<C> {
+    type Raw = (*mut BNBasicBlock, C);
+    unsafe fn from_raw((handle, context): Self::Raw) -> Ref<Self> {
+        Ref::new(Self { handle, context })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewBasicBlockReference(handle.handle),
@@ -313,6 +317,12 @@ unsafe impl<'a, C: 'a + BlockContext> CoreArrayWrapper<'a> for BasicBlock<C> {
     type Wrapped = Guard<'a, BasicBlock<C>>;
 
     unsafe fn wrap_raw(raw: &'a Self::Raw, context: &'a Self::Context) -> Self::Wrapped {
-        Guard::new(BasicBlock::from_raw(*raw, context.clone()), context)
+        Guard::new(
+            Self {
+                handle: *raw,
+                context: context.clone(),
+            },
+            context,
+        )
     }
 }

@@ -35,7 +35,11 @@ use std::slice;
 // `T` does not have the `Drop` impl in order to allow more
 // efficient handling of core owned objects we receive pointers
 // to in callbacks
-pub unsafe trait RefCountable: ToOwned<Owned = Ref<Self>> + Sized {
+pub(crate) unsafe trait RefCountable: ToOwned<Owned = Ref<Self>> + Sized {
+    type Raw;
+    /// create a new representation of this type from a owned raw representation
+    /// of itself
+    unsafe fn from_raw(raw: Self::Raw) -> Ref<Self>;
     unsafe fn inc_ref(handle: &Self) -> Ref<Self>;
     unsafe fn dec_ref(handle: &Self);
 }
@@ -43,10 +47,12 @@ pub unsafe trait RefCountable: ToOwned<Owned = Ref<Self>> + Sized {
 // Represents an 'owned' reference tracked by the core
 // that we are responsible for cleaning up once we're
 // done with the encapsulated value.
+#[allow(private_bounds)]
 pub struct Ref<T: RefCountable> {
     contents: T,
 }
 
+#[allow(private_bounds)]
 impl<T: RefCountable> Ref<T> {
     /// Safety: You need to make sure wherever you got the contents from incremented the ref count already. Anywhere the core passes out an object to the API does this.
     pub(crate) unsafe fn new(contents: T) -> Self {
@@ -151,6 +157,7 @@ impl<'a, T> Guard<'a, T> {
     }
 }
 
+#[allow(private_bounds)]
 impl<'a, T> Guard<'a, T>
 where
     T: RefCountable,

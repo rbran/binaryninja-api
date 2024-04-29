@@ -183,11 +183,7 @@ extern "C" fn cb_progress(ctxt: *mut c_void, cur: usize, max: usize) -> bool {
 
 pub trait BinaryViewExt: BinaryViewBase {
     fn file(&self) -> Ref<FileMetadata> {
-        unsafe {
-            let raw = BNGetFileForView(self.as_ref().handle);
-
-            Ref::new(FileMetadata::from_raw(raw))
-        }
+        unsafe { FileMetadata::from_raw(BNGetFileForView(self.as_ref().handle)) }
     }
 
     fn type_name(&self) -> BnString {
@@ -393,7 +389,7 @@ pub trait BinaryViewExt: BinaryViewBase {
                 return None;
             }
 
-            Some(Platform::ref_from_raw(raw))
+            Some(Platform::from_raw(raw))
         }
     }
 
@@ -423,7 +419,7 @@ pub trait BinaryViewExt: BinaryViewBase {
                 return Err(());
             }
 
-            Ok(Symbol::ref_from_raw(raw_sym))
+            Ok(Symbol::from_raw(raw_sym))
         }
     }
 
@@ -441,7 +437,7 @@ pub trait BinaryViewExt: BinaryViewBase {
                 return Err(());
             }
 
-            Ok(Symbol::ref_from_raw(raw_sym))
+            Ok(Symbol::from_raw(raw_sym))
         }
     }
 
@@ -543,7 +539,7 @@ pub trait BinaryViewExt: BinaryViewBase {
                 return Err(());
             }
 
-            Ok(Symbol::ref_from_raw(raw_sym))
+            Ok(Symbol::from_raw(raw_sym))
         }
     }
 
@@ -747,7 +743,7 @@ pub trait BinaryViewExt: BinaryViewBase {
             if type_handle.is_null() {
                 return None;
             }
-            Some(Type::ref_from_raw(type_handle))
+            Some(Type::from_raw(type_handle))
         }
     }
 
@@ -757,7 +753,7 @@ pub trait BinaryViewExt: BinaryViewBase {
             if type_handle.is_null() {
                 return None;
             }
-            Some(Type::ref_from_raw(type_handle))
+            Some(Type::from_raw(type_handle))
         }
     }
 
@@ -769,7 +765,7 @@ pub trait BinaryViewExt: BinaryViewBase {
             if type_handle.is_null() {
                 return None;
             }
-            Some(Type::ref_from_raw(type_handle))
+            Some(Type::from_raw(type_handle))
         }
     }
 
@@ -814,7 +810,7 @@ pub trait BinaryViewExt: BinaryViewBase {
         }
     }
 
-    fn segment_at(&self, addr: u64) -> Option<Segment> {
+    fn segment_at(&self, addr: u64) -> Option<Ref<Segment>> {
         unsafe {
             let raw_seg = BNGetSegmentAt(self.as_ref().handle, addr);
             if !raw_seg.is_null() {
@@ -851,7 +847,7 @@ pub trait BinaryViewExt: BinaryViewBase {
         }
     }
 
-    fn section_by_name<S: BnStrCompatible>(&self, name: S) -> Result<Section> {
+    fn section_by_name<S: BnStrCompatible>(&self, name: S) -> Result<Ref<Section>> {
         unsafe {
             let raw_name = name.into_bytes_with_nul();
             let name_ptr = raw_name.as_ref().as_ptr() as *mut _;
@@ -1056,7 +1052,7 @@ pub trait BinaryViewExt: BinaryViewBase {
         unsafe { BNApplyDebugInfo(self.as_ref().handle, debug_info.handle) }
     }
 
-    fn show_graph_report<S: BnStrCompatible>(&self, raw_name: S, graph: FlowGraph) {
+    fn show_graph_report<S: BnStrCompatible>(&self, raw_name: S, graph: &FlowGraph) {
         let raw_name = raw_name.into_bytes_with_nul();
         unsafe {
             BNShowGraphReport(
@@ -1228,7 +1224,7 @@ pub trait BinaryViewExt: BinaryViewBase {
         if value.is_null() {
             None
         } else {
-            Some(unsafe { Metadata::ref_from_raw(value) })
+            Some(unsafe { Metadata::from_raw(value) })
         }
     }
 
@@ -1373,12 +1369,6 @@ pub struct BinaryView {
 }
 
 impl BinaryView {
-    pub(crate) unsafe fn from_raw(handle: *mut BNBinaryView) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     pub fn from_filename<S: BnStrCompatible>(
         meta: &mut FileMetadata,
         filename: S,
@@ -1495,6 +1485,13 @@ impl BinaryViewBase for BinaryView {
 }
 
 unsafe impl RefCountable for BinaryView {
+    type Raw = *mut BNBinaryView;
+    unsafe fn from_raw(handle: *mut BNBinaryView) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewViewReference(handle.handle),

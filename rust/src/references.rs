@@ -1,6 +1,6 @@
 use crate::architecture::CoreArchitecture;
 use crate::function::Function;
-use crate::rc::{CoreArrayProvider, CoreArrayWrapper, CoreOwnedArrayProvider, Ref};
+use crate::rc::{CoreArrayProvider, CoreArrayWrapper, CoreOwnedArrayProvider, Ref, RefCountable};
 use binaryninjacore_sys::{BNFreeCodeReferences, BNFreeDataReferences, BNReferenceSource};
 use std::mem::ManuallyDrop;
 

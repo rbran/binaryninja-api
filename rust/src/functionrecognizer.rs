@@ -1,4 +1,5 @@
 use crate::architecture::Architecture;
+use crate::rc::RefCountable;
 use crate::{
     architecture::CoreArchitecture, binaryview::BinaryView, function::Function, llil, mlil,
 };
@@ -54,7 +55,7 @@ where
             return false;
         }
         let arch = unsafe { CoreArchitecture::from_raw(arch) };
-        let llil = unsafe { llil::RegularFunction::from_raw(arch, llil) };
+        let llil = unsafe { llil::RegularFunction::from_raw((arch, llil)) };
         custom_handler.recognize_low_level_il(bv.as_ref(), func.as_ref(), &llil)
     }
 
@@ -70,7 +71,7 @@ where
         let custom_handler = unsafe { &*(ctxt as *mut R) };
         let bv = unsafe { BinaryView::from_raw(BNNewViewReference(bv)) };
         let func = unsafe { Function::from_raw(BNNewFunctionReference(func)) };
-        let mlil = unsafe { mlil::MediumLevelILFunction::ref_from_raw(mlil) };
+        let mlil = unsafe { mlil::MediumLevelILFunction::from_raw(mlil) };
         custom_handler.recognize_medium_level_il(bv.as_ref(), func.as_ref(), &mlil)
     }
 

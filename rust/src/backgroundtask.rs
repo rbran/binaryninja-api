@@ -29,12 +29,6 @@ pub struct BackgroundTask {
 }
 
 impl BackgroundTask {
-    pub(crate) unsafe fn from_raw(handle: *mut BNBackgroundTask) -> Self {
-        debug_assert!(!handle.is_null());
-
-        Self { handle }
-    }
-
     pub fn new<S: BnStrCompatible>(initial_text: S, can_cancel: bool) -> Result<Ref<Self>> {
         let text = initial_text.into_bytes_with_nul();
 
@@ -44,7 +38,7 @@ impl BackgroundTask {
             return Err(());
         }
 
-        unsafe { Ok(Ref::new(Self { handle })) }
+        unsafe { Ok(Self::from_raw(handle)) }
     }
 
     pub fn can_cancel(&self) -> bool {
@@ -90,6 +84,14 @@ impl BackgroundTask {
 }
 
 unsafe impl RefCountable for BackgroundTask {
+    type Raw = *mut BNBackgroundTask;
+
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewBackgroundTaskReference(handle.handle),
@@ -119,7 +121,7 @@ unsafe impl<'a> CoreArrayWrapper<'a> for BackgroundTask {
         raw: &'a *mut BNBackgroundTask,
         context: &'a (),
     ) -> Guard<'a, BackgroundTask> {
-        Guard::new(BackgroundTask::from_raw(*raw), context)
+        Guard::new(Self { handle: *raw }, context)
     }
 }
 

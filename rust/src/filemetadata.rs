@@ -57,10 +57,6 @@ unsafe impl Send for FileMetadata {}
 unsafe impl Sync for FileMetadata {}
 
 impl FileMetadata {
-    pub(crate) fn from_raw(handle: *mut BNFileMetadata) -> Self {
-        Self { handle }
-    }
-
     pub fn new() -> Ref<Self> {
         unsafe {
             Ref::new(Self {
@@ -273,6 +269,11 @@ impl ToOwned for FileMetadata {
 }
 
 unsafe impl RefCountable for FileMetadata {
+    type Raw = *mut BNFileMetadata;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewFileReference(handle.handle),

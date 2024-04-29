@@ -431,13 +431,7 @@ pub struct DisassemblySettings {
 
 impl DisassemblySettings {
     pub fn new() -> Ref<Self> {
-        unsafe {
-            let handle = BNCreateDisassemblySettings();
-
-            debug_assert!(!handle.is_null());
-
-            Ref::new(Self { handle })
-        }
+        unsafe { Self::from_raw(BNCreateDisassemblySettings()) }
     }
 
     pub fn set_option(&self, option: DisassemblyOption, state: bool) {
@@ -458,6 +452,11 @@ impl ToOwned for DisassemblySettings {
 }
 
 unsafe impl RefCountable for DisassemblySettings {
+    type Raw = *mut BNDisassemblySettings;
+    unsafe fn from_raw(raw: Self::Raw) -> Ref<Self> {
+        debug_assert!(!raw.is_null());
+        Ref::new(Self { handle: raw })
+    }
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewDisassemblySettingsReference(handle.handle),

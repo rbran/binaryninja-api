@@ -36,14 +36,6 @@ impl Hash for HighLevelILFunction {
 }
 
 impl HighLevelILFunction {
-    pub(crate) unsafe fn ref_from_raw(
-        handle: *mut BNHighLevelILFunction,
-        full_ast: bool,
-    ) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-        Self { handle, full_ast }.to_owned()
-    }
-
     pub fn instruction_from_idx(&self, expr_idx: usize) -> HighLevelILInstruction {
         HighLevelILInstruction::new(self.to_owned(), expr_idx)
     }
@@ -92,6 +84,12 @@ impl ToOwned for HighLevelILFunction {
 }
 
 unsafe impl RefCountable for HighLevelILFunction {
+    type Raw = (*mut BNHighLevelILFunction, bool);
+    unsafe fn from_raw((handle, full_ast): Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+        Self { handle, full_ast }.to_owned()
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewHighLevelILFunctionReference(handle.handle),

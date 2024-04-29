@@ -223,7 +223,7 @@ impl<T> From<T> for Conf<T> {
 impl From<BNTypeWithConfidence> for Conf<Ref<Type>> {
     fn from(type_with_confidence: BNTypeWithConfidence) -> Self {
         Self::new(
-            unsafe { Type::ref_from_raw(type_with_confidence.type_) },
+            unsafe { Type::from_raw(type_with_confidence.type_) },
             type_with_confidence.confidence,
         )
     }
@@ -239,12 +239,12 @@ impl From<BNCallingConventionWithConfidence> for Conf<Ref<CallingConvention<Core
     fn from(cc_with_confidence: BNCallingConventionWithConfidence) -> Self {
         Self::new(
             unsafe {
-                CallingConvention::ref_from_raw(
+                CallingConvention::from_raw((
                     cc_with_confidence.convention,
                     CoreArchitecture::from_raw(BNGetCallingConventionArchitecture(
                         cc_with_confidence.convention,
                     )),
-                )
+                ))
             },
             cc_with_confidence.confidence,
         )
@@ -325,7 +325,7 @@ impl TypeBuilder {
 
     // Chainable terminal
     pub fn finalize(&self) -> Ref<Type> {
-        unsafe { Type::ref_from_raw(BNFinalizeTypeBuilder(self.handle)) }
+        unsafe { Type::from_raw(BNFinalizeTypeBuilder(self.handle)) }
     }
 
     // Settable properties
@@ -458,7 +458,7 @@ impl TypeBuilder {
         if result.is_null() {
             Err(())
         } else {
-            Ok(unsafe { Structure::ref_from_raw(result) })
+            Ok(unsafe { Structure::from_raw(result) })
         }
     }
 
@@ -467,7 +467,7 @@ impl TypeBuilder {
         if result.is_null() {
             Err(())
         } else {
-            Ok(unsafe { Enumeration::ref_from_raw(result) })
+            Ok(unsafe { Enumeration::from_raw(result) })
         }
     }
 
@@ -476,7 +476,7 @@ impl TypeBuilder {
         if result.is_null() {
             Err(())
         } else {
-            Ok(unsafe { NamedTypeReference::ref_from_raw(result) })
+            Ok(unsafe { NamedTypeReference::from_raw(result) })
         }
     }
 
@@ -711,16 +711,6 @@ pub struct Type {
 /// bv.define_user_type("int_2", &my_custom_type_2);
 /// ```
 impl Type {
-    unsafe fn from_raw(handle: *mut BNType) -> Self {
-        debug_assert!(!handle.is_null());
-        Self { handle }
-    }
-
-    pub(crate) unsafe fn ref_from_raw(handle: *mut BNType) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-        Ref::new(Self { handle })
-    }
-
     pub fn to_builder(&self) -> TypeBuilder {
         TypeBuilder::new(self)
     }
@@ -830,7 +820,7 @@ impl Type {
         if result.is_null() {
             Err(())
         } else {
-            Ok(unsafe { Structure::ref_from_raw(result) })
+            Ok(unsafe { Structure::from_raw(result) })
         }
     }
 
@@ -839,7 +829,7 @@ impl Type {
         if result.is_null() {
             Err(())
         } else {
-            Ok(unsafe { Enumeration::ref_from_raw(result) })
+            Ok(unsafe { Enumeration::from_raw(result) })
         }
     }
 
@@ -848,7 +838,7 @@ impl Type {
         if result.is_null() {
             Err(())
         } else {
-            Ok(unsafe { NamedTypeReference::ref_from_raw(result) })
+            Ok(unsafe { NamedTypeReference::from_raw(result) })
         }
     }
 
@@ -869,7 +859,7 @@ impl Type {
         if result.is_null() {
             Err(())
         } else {
-            Ok(unsafe { NamedTypeReference::ref_from_raw(result) })
+            Ok(unsafe { NamedTypeReference::from_raw(result) })
         }
     }
 
@@ -877,11 +867,11 @@ impl Type {
     // pub fn tokens(&self) -> ? {}
 
     pub fn void() -> Ref<Self> {
-        unsafe { Self::ref_from_raw(BNCreateVoidType()) }
+        unsafe { Self::from_raw(BNCreateVoidType()) }
     }
 
     pub fn bool() -> Ref<Self> {
-        unsafe { Self::ref_from_raw(BNCreateBoolType()) }
+        unsafe { Self::from_raw(BNCreateBoolType()) }
     }
 
     pub fn char() -> Ref<Self> {
@@ -890,7 +880,7 @@ impl Type {
 
     pub fn wide_char(width: usize) -> Ref<Self> {
         unsafe {
-            Self::ref_from_raw(BNCreateWideCharType(
+            Self::from_raw(BNCreateWideCharType(
                 width,
                 BnString::new("").as_ptr() as *mut _,
             ))
@@ -900,7 +890,7 @@ impl Type {
     pub fn int(width: usize, is_signed: bool) -> Ref<Self> {
         let mut is_signed = Conf::new(is_signed, max_confidence()).into();
         unsafe {
-            Self::ref_from_raw(BNCreateIntegerType(
+            Self::from_raw(BNCreateIntegerType(
                 width,
                 &mut is_signed,
                 BnString::new("").as_ptr() as *mut _,
@@ -914,7 +904,7 @@ impl Type {
         let alt_name = alt_name.into_bytes_with_nul(); // This segfaulted once, so the above version is there if we need to change to it, but in theory this is copied into a `const string&` on the C++ side; I'm just not 100% confident that a constant reference copies data
 
         unsafe {
-            Self::ref_from_raw(BNCreateIntegerType(
+            Self::from_raw(BNCreateIntegerType(
                 width,
                 &mut is_signed,
                 alt_name.as_ref().as_ptr() as _,
@@ -924,7 +914,7 @@ impl Type {
 
     pub fn float(width: usize) -> Ref<Self> {
         unsafe {
-            Self::ref_from_raw(BNCreateFloatType(
+            Self::from_raw(BNCreateFloatType(
                 width,
                 BnString::new("").as_ptr() as *mut _,
             ))
@@ -935,11 +925,11 @@ impl Type {
         // let alt_name = BnString::new(alt_name);
         let alt_name = alt_name.into_bytes_with_nul(); // See same line in `named_int` above
 
-        unsafe { Self::ref_from_raw(BNCreateFloatType(width, alt_name.as_ref().as_ptr() as _)) }
+        unsafe { Self::from_raw(BNCreateFloatType(width, alt_name.as_ref().as_ptr() as _)) }
     }
 
     pub fn array<'a, T: Into<Conf<&'a Type>>>(t: T, count: u64) -> Ref<Self> {
-        unsafe { Self::ref_from_raw(BNCreateArrayType(&t.into().into(), count)) }
+        unsafe { Self::from_raw(BNCreateArrayType(&t.into().into(), count)) }
     }
 
     /// The C/C++ APIs require an associated architecture, but in the core we only query the default_int_size if the given width is 0
@@ -953,7 +943,7 @@ impl Type {
         unsafe {
             // TODO : This is _extremely fragile_, we should change the internals of BNCreateEnumerationType instead of doing this
             let mut fake_arch: BNArchitecture = mem::zeroed();
-            Self::ref_from_raw(BNCreateEnumerationType(
+            Self::from_raw(BNCreateEnumerationType(
                 &mut fake_arch,
                 enumeration.handle,
                 width,
@@ -963,14 +953,14 @@ impl Type {
     }
 
     pub fn structure(structure: &Structure) -> Ref<Self> {
-        unsafe { Self::ref_from_raw(BNCreateStructureType(structure.handle)) }
+        unsafe { Self::from_raw(BNCreateStructureType(structure.handle)) }
     }
 
     pub fn named_type(type_reference: &NamedTypeReference) -> Ref<Self> {
         let mut is_const = Conf::new(false, min_confidence()).into();
         let mut is_volatile = Conf::new(false, min_confidence()).into();
         unsafe {
-            Self::ref_from_raw(BNCreateNamedTypeReference(
+            Self::from_raw(BNCreateNamedTypeReference(
                 type_reference.handle,
                 0,
                 1,
@@ -984,7 +974,7 @@ impl Type {
         let mut name = QualifiedName::from(name);
 
         unsafe {
-            Self::ref_from_raw(BNCreateNamedTypeReferenceFromTypeAndId(
+            Self::from_raw(BNCreateNamedTypeReferenceFromTypeAndId(
                 BnString::new("").as_ptr() as *mut _,
                 &mut name.0,
                 t.handle,
@@ -1037,7 +1027,7 @@ impl Type {
         };
 
         unsafe {
-            Self::ref_from_raw(BNNewTypeReference(BNCreateFunctionType(
+            Self::from_raw(BNNewTypeReference(BNCreateFunctionType(
                 &mut return_type,
                 &mut raw_calling_convention,
                 raw_parameters.as_mut_ptr(),
@@ -1110,7 +1100,7 @@ impl Type {
         };
 
         unsafe {
-            Self::ref_from_raw(BNCreateFunctionType(
+            Self::from_raw(BNCreateFunctionType(
                 &mut return_type,
                 &mut raw_calling_convention,
                 raw_parameters.as_mut_ptr(),
@@ -1132,7 +1122,7 @@ impl Type {
         let mut is_const = Conf::new(false, min_confidence()).into();
         let mut is_volatile = Conf::new(false, min_confidence()).into();
         unsafe {
-            Self::ref_from_raw(BNCreatePointerType(
+            Self::from_raw(BNCreatePointerType(
                 arch.as_ref().0,
                 &t.into().into(),
                 &mut is_const,
@@ -1149,7 +1139,7 @@ impl Type {
         let mut is_const = Conf::new(true, max_confidence()).into();
         let mut is_volatile = Conf::new(false, min_confidence()).into();
         unsafe {
-            Self::ref_from_raw(BNCreatePointerType(
+            Self::from_raw(BNCreatePointerType(
                 arch.as_ref().0,
                 &t.into().into(),
                 &mut is_const,
@@ -1169,7 +1159,7 @@ impl Type {
         let mut is_const = Conf::new(is_const, max_confidence()).into();
         let mut is_volatile = Conf::new(is_volatile, max_confidence()).into();
         unsafe {
-            Self::ref_from_raw(BNCreatePointerTypeOfWidth(
+            Self::from_raw(BNCreatePointerTypeOfWidth(
                 size,
                 &t.into().into(),
                 &mut is_const,
@@ -1189,7 +1179,7 @@ impl Type {
         let mut is_const = Conf::new(is_const, max_confidence()).into();
         let mut is_volatile = Conf::new(is_volatile, max_confidence()).into();
         unsafe {
-            Self::ref_from_raw(BNCreatePointerType(
+            Self::from_raw(BNCreatePointerType(
                 arch.as_ref().0,
                 &t.into().into(),
                 &mut is_const,
@@ -1295,8 +1285,14 @@ unsafe impl Send for Type {}
 unsafe impl Sync for Type {}
 
 unsafe impl RefCountable for Type {
+    type Raw = *mut BNType;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Self::ref_from_raw(BNNewTypeReference(handle.handle))
+        Self::from_raw(BNNewTypeReference(handle.handle))
     }
 
     unsafe fn dec_ref(handle: &Self) {
@@ -1349,7 +1345,7 @@ impl FunctionParameter {
 
         Self {
             t: Conf::new(
-                unsafe { Type::ref_from_raw(BNNewTypeReference(member.type_)) },
+                unsafe { Type::from_raw(BNNewTypeReference(member.type_)) },
                 member.typeConfidence,
             ),
             name,
@@ -1438,7 +1434,7 @@ impl NamedTypedVariable {
     }
 
     pub fn var_type(&self) -> Ref<Type> {
-        unsafe { Ref::new(Type::from_raw(self.ty)) }
+        unsafe { Type::from_raw(self.ty) }
     }
 }
 
@@ -1512,7 +1508,7 @@ impl EnumerationBuilder {
     }
 
     pub fn finalize(&self) -> Ref<Enumeration> {
-        unsafe { Enumeration::ref_from_raw(BNFinalizeEnumerationBuilder(self.handle)) }
+        unsafe { Enumeration::from_raw(BNFinalizeEnumerationBuilder(self.handle)) }
     }
 
     pub fn append<S: BnStrCompatible>(&self, name: S) -> &Self {
@@ -1595,11 +1591,6 @@ pub struct Enumeration {
 }
 
 impl Enumeration {
-    pub(crate) unsafe fn ref_from_raw(handle: *mut BNEnumeration) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-        Ref::new(Self { handle })
-    }
-
     pub fn builder() -> EnumerationBuilder {
         EnumerationBuilder::new()
     }
@@ -1622,8 +1613,14 @@ impl Enumeration {
 }
 
 unsafe impl RefCountable for Enumeration {
+    type Raw = *mut BNEnumeration;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Self::ref_from_raw(BNNewEnumerationReference(handle.handle))
+        Self::from_raw(BNNewEnumerationReference(handle.handle))
     }
 
     unsafe fn dec_ref(handle: &Self) {
@@ -1686,7 +1683,7 @@ impl StructureBuilder {
 
     // Chainable terminal
     pub fn finalize(&self) -> Ref<Structure> {
-        unsafe { Structure::ref_from_raw(BNFinalizeStructureBuilder(self.handle)) }
+        unsafe { Structure::from_raw(BNFinalizeStructureBuilder(self.handle)) }
     }
 
     // Chainable builders/setters
@@ -1913,16 +1910,6 @@ pub struct Structure {
 }
 
 impl Structure {
-    unsafe fn from_raw(handle: *mut BNStructure) -> Self {
-        debug_assert!(!handle.is_null());
-        Self { handle }
-    }
-
-    pub(crate) unsafe fn ref_from_raw(handle: *mut BNStructure) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-        Ref::new(Self { handle })
-    }
-
     pub fn builder() -> StructureBuilder {
         StructureBuilder::new()
     }
@@ -1992,8 +1979,14 @@ impl Debug for Structure {
 }
 
 unsafe impl RefCountable for Structure {
+    type Raw = *mut BNStructure;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Ref::new(Self::from_raw(BNNewStructureReference(handle.handle)))
+        Self::from_raw(BNNewStructureReference(handle.handle))
     }
 
     unsafe fn dec_ref(handle: &Self) {
@@ -2112,17 +2105,6 @@ pub struct NamedTypeReference {
 }
 
 impl NamedTypeReference {
-    pub(crate) unsafe fn from_raw(handle: *mut BNNamedTypeReference) -> Self {
-        debug_assert!(!handle.is_null());
-
-        Self { handle }
-    }
-
-    pub(crate) unsafe fn ref_from_raw(handle: *mut BNNamedTypeReference) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-        Ref::new(Self { handle })
-    }
-
     /// Create an NTR to a type that did not come directly from a BinaryView's types list.
     /// That is to say, if you're referencing a new type you're GOING to add, use this.
     /// You should not assign type ids yourself, that is the responsibility of the BinaryView
@@ -2204,8 +2186,14 @@ impl ToOwned for NamedTypeReference {
 }
 
 unsafe impl RefCountable for NamedTypeReference {
+    type Raw = *mut BNNamedTypeReference;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
-        Self::ref_from_raw(BNNewNamedTypeReference(handle.handle))
+        Self::from_raw(BNNewNamedTypeReference(handle.handle))
     }
 
     unsafe fn dec_ref(handle: &Self) {
@@ -2368,7 +2356,12 @@ impl QualifiedNameAndType {
     }
 
     pub fn type_object(&self) -> Guard<Type> {
-        unsafe { Guard::new(Type::from_raw(self.0.type_), self) }
+        unsafe {
+            let type_ = Type {
+                handle: self.0.type_,
+            };
+            Guard::new(type_, self)
+        }
     }
 }
 
@@ -2414,7 +2407,12 @@ impl QualifiedNameTypeAndId {
     }
 
     pub fn type_object(&self) -> Guard<Type> {
-        unsafe { Guard::new(Type::from_raw(self.0.type_), self) }
+        unsafe {
+            let type_ = Type {
+                handle: self.0.type_,
+            };
+            Guard::new(type_, self)
+        }
     }
 }
 
@@ -2456,7 +2454,7 @@ impl NameAndType<String> {
     pub(crate) fn from_raw(raw: &BNNameAndType) -> Self {
         Self::new(
             raw_to_string(raw.name).unwrap(),
-            unsafe { &Type::ref_from_raw(raw.type_) },
+            unsafe { &Type::from_raw(raw.type_) },
             raw.typeConfidence,
         )
     }
@@ -2566,7 +2564,7 @@ impl DataVariableAndName<String> {
     pub(crate) fn from_raw(var: &BNDataVariableAndName) -> Self {
         Self {
             address: var.address,
-            t: Conf::new(unsafe { Type::ref_from_raw(var.type_) }, var.typeConfidence),
+            t: Conf::new(unsafe { Type::from_raw(var.type_) }, var.typeConfidence),
             auto_discovered: var.autoDiscovered,
             name: raw_to_string(var.name).unwrap(),
         }

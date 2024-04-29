@@ -30,7 +30,6 @@ pub use binaryninjacore_sys::BNAnalysisSkipReason as AnalysisSkipReason;
 pub use binaryninjacore_sys::BNFunctionAnalysisSkipOverride as FunctionAnalysisSkipOverride;
 pub use binaryninjacore_sys::BNFunctionUpdateType as FunctionUpdateType;
 
-
 use std::hash::Hash;
 use std::{fmt, mem};
 
@@ -122,10 +121,6 @@ unsafe impl Send for Function {}
 unsafe impl Sync for Function {}
 
 impl Function {
-    pub(crate) unsafe fn from_raw(handle: *mut BNFunction) -> Ref<Self> {
-        Ref::new(Self { handle })
-    }
-
     pub fn arch(&self) -> CoreArchitecture {
         unsafe {
             let arch = BNGetFunctionArchitecture(self.handle);
@@ -136,7 +131,7 @@ impl Function {
     pub fn platform(&self) -> Ref<Platform> {
         unsafe {
             let plat = BNGetFunctionPlatform(self.handle);
-            Platform::ref_from_raw(plat)
+            Platform::from_raw(plat)
         }
     }
 
@@ -150,7 +145,7 @@ impl Function {
     pub fn symbol(&self) -> Ref<Symbol> {
         unsafe {
             let sym = BNGetFunctionSymbol(self.handle);
-            Symbol::ref_from_raw(sym)
+            Symbol::from_raw(sym)
         }
     }
 
@@ -228,7 +223,7 @@ impl Function {
                 return None;
             }
 
-            Some(Ref::new(BasicBlock::from_raw(block, context)))
+            Some(BasicBlock::from_raw((block, context)))
         }
     }
 
@@ -248,7 +243,7 @@ impl Function {
                 return Err(());
             }
 
-            Ok(hlil::HighLevelILFunction::ref_from_raw(hlil, full_ast))
+            Ok(hlil::HighLevelILFunction::from_raw((hlil, full_ast)))
         }
     }
 
@@ -260,7 +255,7 @@ impl Function {
                 return Err(());
             }
 
-            Ok(mlil::MediumLevelILFunction::ref_from_raw(mlil))
+            Ok(mlil::MediumLevelILFunction::from_raw(mlil))
         }
     }
 
@@ -272,7 +267,7 @@ impl Function {
                 return Err(());
             }
 
-            Ok(llil::RegularFunction::from_raw(self.arch(), llil))
+            Ok(llil::RegularFunction::from_raw((self.arch(), llil)))
         }
     }
 
@@ -284,7 +279,7 @@ impl Function {
                 return Err(());
             }
 
-            Ok(llil::LiftedFunction::from_raw(self.arch(), llil))
+            Ok(llil::LiftedFunction::from_raw((self.arch(), llil)))
         }
     }
 
@@ -292,13 +287,13 @@ impl Function {
         let result = unsafe { BNGetFunctionReturnType(self.handle) };
 
         Conf::new(
-            unsafe { Type::ref_from_raw(result.type_) },
+            unsafe { Type::from_raw(result.type_) },
             result.confidence,
         )
     }
 
     pub fn function_type(&self) -> Ref<Type> {
-        unsafe { Type::ref_from_raw(BNGetFunctionType(self.handle)) }
+        unsafe { Type::from_raw(BNGetFunctionType(self.handle)) }
     }
 
     pub fn set_user_type(&self, t: Type) {
@@ -385,6 +380,11 @@ impl ToOwned for Function {
 }
 
 unsafe impl RefCountable for Function {
+    type Raw = *mut BNFunction;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewFunctionReference(handle.handle),

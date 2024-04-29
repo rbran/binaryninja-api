@@ -111,10 +111,6 @@ pub struct Segment {
 }
 
 impl Segment {
-    pub(crate) unsafe fn from_raw(raw: *mut BNSegment) -> Self {
-        Self { handle: raw }
-    }
-
     /// You need to create a segment builder, customize that segment, then add it to a binary view:
     ///
     /// ```
@@ -187,6 +183,11 @@ impl ToOwned for Segment {
 }
 
 unsafe impl RefCountable for Segment {
+    type Raw = *mut BNSegment;
+    unsafe fn from_raw(raw: Self::Raw) -> Ref<Self> {
+        Ref::new(Self { handle: raw })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewSegmentReference(handle.handle),
@@ -213,6 +214,6 @@ unsafe impl<'a> CoreArrayWrapper<'a> for Segment {
     type Wrapped = Guard<'a, Segment>;
 
     unsafe fn wrap_raw(raw: &'a Self::Raw, context: &'a Self::Context) -> Self::Wrapped {
-        Guard::new(Segment::from_raw(*raw), context)
+        Guard::new(Segment { handle: *raw }, context)
     }
 }

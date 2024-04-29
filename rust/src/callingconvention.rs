@@ -433,17 +433,6 @@ unsafe impl<A: Architecture> Send for CallingConvention<A> {}
 unsafe impl<A: Architecture> Sync for CallingConvention<A> {}
 
 impl<A: Architecture> CallingConvention<A> {
-    pub(crate) unsafe fn ref_from_raw(
-        handle: *mut BNCallingConvention,
-        arch: A::Handle,
-    ) -> Ref<Self> {
-        Ref::new(CallingConvention {
-            handle,
-            arch_handle: arch,
-            _arch: PhantomData,
-        })
-    }
-
     pub fn name(&self) -> BnString {
         unsafe { BnString::from_raw(BNGetCallingConventionName(self.handle)) }
     }
@@ -638,6 +627,15 @@ impl<A: Architecture> ToOwned for CallingConvention<A> {
 }
 
 unsafe impl<A: Architecture> RefCountable for CallingConvention<A> {
+    type Raw = (*mut BNCallingConvention, A::Handle);
+    unsafe fn from_raw((handle, arch): Self::Raw) -> Ref<Self> {
+        Ref::new(CallingConvention {
+            handle,
+            arch_handle: arch,
+            _arch: PhantomData,
+        })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewCallingConventionReference(handle.handle),

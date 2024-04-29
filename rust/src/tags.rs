@@ -26,12 +26,6 @@ pub struct Tag {
 }
 
 impl Tag {
-    pub(crate) unsafe fn from_raw(handle: *mut BNTag) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     pub fn new<S: BnStrCompatible>(t: &TagType, data: S) -> Ref<Self> {
         let data = data.into_bytes_with_nul();
         unsafe { Self::from_raw(BNCreateTag(t.handle, data.as_ref().as_ptr() as *mut _)) }
@@ -58,6 +52,13 @@ impl Tag {
 }
 
 unsafe impl RefCountable for Tag {
+    type Raw = *mut BNTag;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewTagReference(handle.handle),
@@ -87,12 +88,6 @@ pub struct TagType {
 }
 
 impl TagType {
-    pub(crate) unsafe fn from_raw(handle: *mut BNTagType) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     pub fn create<N: BnStrCompatible, I: BnStrCompatible>(
         view: &BinaryView,
         name: N,
@@ -155,6 +150,13 @@ impl TagType {
 }
 
 unsafe impl RefCountable for TagType {
+    type Raw = *mut BNTagType;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewTagTypeReference(handle.handle),

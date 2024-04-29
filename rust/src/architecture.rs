@@ -1561,7 +1561,7 @@ macro_rules! cc_func {
                 if cc.is_null() {
                     None
                 } else {
-                    Some(CallingConvention::ref_from_raw(cc, self.handle()))
+                    Some(CallingConvention::from_raw((cc, self.handle())))
                 }
             }
         }
@@ -1630,7 +1630,7 @@ pub trait ArchitectureExt: Architecture {
                 return None;
             }
 
-            Some(Platform::ref_from_raw(handle))
+            Some(Platform::from_raw(handle))
         }
     }
 
@@ -1647,7 +1647,7 @@ pub trait ArchitectureExt: Architecture {
                 return None;
             }
 
-            Some(CoreRelocationHandler::ref_from_raw(handle))
+            Some(CoreRelocationHandler::from_raw(handle))
         }
     }
 
@@ -1850,7 +1850,7 @@ where
         };
 
         let data = unsafe { slice::from_raw_parts(data, *len) };
-        let mut lifter = unsafe { Lifter::from_raw(custom_arch_handle, il) };
+        let mut lifter = unsafe { Lifter::from_raw((custom_arch_handle, il)) };
 
         match custom_arch.instruction_llil(data, addr, &mut lifter) {
             Some((res_len, res_value)) => {
@@ -2186,7 +2186,7 @@ where
         let flag_write = custom_arch.flag_write_from_id(flag_write);
         let flag = custom_arch.flag_from_id(flag);
         let operands = unsafe { slice::from_raw_parts(operands_raw, operand_count) };
-        let mut lifter = unsafe { Lifter::from_raw(custom_arch_handle, il) };
+        let mut lifter = unsafe { Lifter::from_raw((custom_arch_handle, il)) };
 
         if let (Some(flag_write), Some(flag)) = (flag_write, flag) {
             if let Some(op) = FlagWriteOp::from_op(custom_arch, size, op, operands) {
@@ -2238,7 +2238,7 @@ where
 
         let class = custom_arch.flag_class_from_id(class);
 
-        let mut lifter = unsafe { Lifter::from_raw(custom_arch_handle, il) };
+        let mut lifter = unsafe { Lifter::from_raw((custom_arch_handle, il)) };
         if let Some(expr) = custom_arch.flag_cond_llil(cond, class, &mut lifter) {
             // TODO verify that returned expr is a bool value
             return expr.expr_idx;
@@ -2260,7 +2260,7 @@ where
             handle: ctxt as *mut A,
         };
 
-        let mut lifter = unsafe { Lifter::from_raw(custom_arch_handle, il) };
+        let mut lifter = unsafe { Lifter::from_raw((custom_arch_handle, il)) };
 
         if let Some(group) = custom_arch.flag_group_from_id(group) {
             if let Some(expr) = custom_arch.flag_group_llil(group, &mut lifter) {

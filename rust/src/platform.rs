@@ -45,7 +45,7 @@ macro_rules! cc_func {
                 if cc.is_null() {
                     None
                 } else {
-                    Some(CallingConvention::ref_from_raw(cc, arch))
+                    Some(CallingConvention::from_raw((cc, arch)))
                 }
             }
         }
@@ -66,12 +66,6 @@ macro_rules! cc_func {
 }
 
 impl Platform {
-    pub(crate) unsafe fn ref_from_raw(handle: *mut BNPlatform) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     pub fn by_name<S: BnStrCompatible>(name: S) -> Option<Ref<Self>> {
         let raw_name = name.into_bytes_with_nul();
         unsafe {
@@ -320,21 +314,21 @@ impl TypeParser for Platform {
                 let name = QualifiedName(i.name);
                 type_parser_result
                     .types
-                    .insert(name.string(), Type::ref_from_raw(i.type_));
+                    .insert(name.string(), Type::from_raw(i.type_));
             }
 
             for i in slice::from_raw_parts(result.functions, result.functionCount) {
                 let name = QualifiedName(i.name);
                 type_parser_result
                     .functions
-                    .insert(name.string(), Type::ref_from_raw(i.type_));
+                    .insert(name.string(), Type::from_raw(i.type_));
             }
 
             for i in slice::from_raw_parts(result.variables, result.variableCount) {
                 let name = QualifiedName(i.name);
                 type_parser_result
                     .variables
-                    .insert(name.string(), Type::ref_from_raw(i.type_));
+                    .insert(name.string(), Type::from_raw(i.type_));
             }
         }
 
@@ -351,6 +345,13 @@ impl ToOwned for Platform {
 }
 
 unsafe impl RefCountable for Platform {
+    type Raw = *mut BNPlatform;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewPlatformReference(handle.handle),

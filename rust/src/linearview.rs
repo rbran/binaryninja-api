@@ -30,12 +30,6 @@ pub struct LinearViewObject {
 }
 
 impl LinearViewObject {
-    pub(crate) unsafe fn from_raw(handle: *mut BNLinearViewObject) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     pub fn data_only(view: &BinaryView, settings: &DisassemblySettings) -> Ref<Self> {
         unsafe {
             let handle =
@@ -209,6 +203,13 @@ impl LinearViewObject {
 }
 
 unsafe impl RefCountable for LinearViewObject {
+    type Raw = *mut BNLinearViewObject;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewLinearViewObjectReference(handle.handle),
@@ -237,12 +238,6 @@ pub struct LinearViewCursor {
 }
 
 impl LinearViewCursor {
-    pub(crate) unsafe fn from_raw(handle: *mut BNLinearViewCursor) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     pub fn new(root: &LinearViewObject) -> Ref<Self> {
         unsafe {
             let handle = BNCreateLinearViewCursor(root.handle);
@@ -345,6 +340,13 @@ impl Ord for LinearViewCursor {
 }
 
 unsafe impl RefCountable for LinearViewCursor {
+    type Raw = *mut BNLinearViewCursor;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewLinearViewCursorReference(handle.handle),

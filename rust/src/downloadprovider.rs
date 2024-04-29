@@ -56,7 +56,7 @@ impl DownloadProvider {
             return Err(());
         }
 
-        Ok(unsafe { DownloadInstance::ref_from_raw(result) })
+        Ok(unsafe { DownloadInstance::from_raw(result) })
     }
 }
 
@@ -100,16 +100,6 @@ pub struct DownloadInstance {
 }
 
 impl DownloadInstance {
-    pub(crate) unsafe fn from_raw(handle: *mut BNDownloadInstance) -> Self {
-        debug_assert!(!handle.is_null());
-
-        Self { handle }
-    }
-
-    pub(crate) unsafe fn ref_from_raw(handle: *mut BNDownloadInstance) -> Ref<Self> {
-        Ref::new(Self::from_raw(handle))
-    }
-
     fn get_error(&self) -> BnString {
         let err: *mut c_char = unsafe { BNGetErrorForDownloadInstance(self.handle) };
         unsafe { BnString::from_raw(err) }
@@ -296,6 +286,13 @@ impl ToOwned for DownloadInstance {
 }
 
 unsafe impl RefCountable for DownloadInstance {
+    type Raw = *mut BNDownloadInstance;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewDownloadInstanceReference(handle.handle),

@@ -212,7 +212,7 @@ impl Relocation {
             return None;
         }
 
-        Some(unsafe { Symbol::ref_from_raw(raw) })
+        Some(unsafe { Symbol::from_raw(raw) })
     }
 }
 
@@ -298,12 +298,6 @@ pub struct CoreRelocationHandler(*mut BNRelocationHandler);
 unsafe impl Send for CoreRelocationHandler {}
 unsafe impl Sync for CoreRelocationHandler {}
 
-impl CoreRelocationHandler {
-    pub(crate) unsafe fn ref_from_raw(raw: *mut BNRelocationHandler) -> Ref<Self> {
-        unsafe { Ref::new(CoreRelocationHandler(raw)) }
-    }
-}
-
 impl AsRef<CoreRelocationHandler> for CoreRelocationHandler {
     fn as_ref(&self) -> &Self {
         self
@@ -388,6 +382,11 @@ impl ToOwned for CoreRelocationHandler {
 }
 
 unsafe impl RefCountable for CoreRelocationHandler {
+    type Raw = *mut BNRelocationHandler;
+    unsafe fn from_raw(raw: Self::Raw) -> Ref<Self> {
+        Ref::new(CoreRelocationHandler(raw))
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self(BNNewRelocationHandlerReference(handle.0)))
     }
@@ -492,7 +491,7 @@ where
         }
         let arch = unsafe { CoreArchitecture::from_raw(arch) };
 
-        let il = unsafe { llil::RegularFunction::from_raw(arch, il) };
+        let il = unsafe { llil::RegularFunction::from_raw((arch, il)) };
 
         custom_handler
             .get_operand_for_external_relocation(data, addr, &il, &reloc)

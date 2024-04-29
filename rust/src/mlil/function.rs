@@ -37,12 +37,6 @@ impl Hash for MediumLevelILFunction {
 }
 
 impl MediumLevelILFunction {
-    pub(crate) unsafe fn ref_from_raw(handle: *mut BNMediumLevelILFunction) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Self { handle }.to_owned()
-    }
-
     pub fn instruction_at<L: Into<Location>>(&self, loc: L) -> Option<MediumLevelILInstruction> {
         let loc: Location = loc.into();
         let arch_handle = loc.arch.unwrap();
@@ -102,6 +96,12 @@ impl ToOwned for MediumLevelILFunction {
 }
 
 unsafe impl RefCountable for MediumLevelILFunction {
+    type Raw = *mut BNMediumLevelILFunction;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+        Self { handle }.to_owned()
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewMediumLevelILFunctionReference(handle.handle),

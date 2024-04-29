@@ -84,22 +84,6 @@ where
     M: FunctionMutability,
     F: FunctionForm,
 {
-    pub(crate) unsafe fn from_raw(
-        borrower: A::Handle,
-        handle: *mut BNLowLevelILFunction,
-    ) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Self {
-            borrower,
-            handle,
-            _arch: PhantomData,
-            _mutability: PhantomData,
-            _form: PhantomData,
-        }
-        .to_owned()
-    }
-
     pub(crate) fn arch(&self) -> &A {
         self.borrower.borrow()
     }
@@ -225,6 +209,20 @@ where
     M: FunctionMutability,
     F: FunctionForm,
 {
+    type Raw = (A::Handle, *mut BNLowLevelILFunction);
+    unsafe fn from_raw((borrower, handle): Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Self {
+            borrower,
+            handle,
+            _arch: PhantomData,
+            _mutability: PhantomData,
+            _form: PhantomData,
+        }
+        .to_owned()
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             borrower: handle.borrower.clone(),

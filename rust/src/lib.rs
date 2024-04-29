@@ -174,6 +174,7 @@ use binaryview::BinaryView;
 use metadata::Metadata;
 use metadata::MetadataType;
 use rc::Ref;
+use rc::RefCountable;
 use string::BnStrCompatible;
 
 // Commented out to suppress unused warnings

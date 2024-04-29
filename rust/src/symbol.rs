@@ -172,7 +172,7 @@ impl SymbolBuilder {
                         ptr::null_mut(),
                         self.ordinal,
                     );
-                    Symbol::ref_from_raw(res)
+                    Symbol::from_raw(res)
                 } else {
                     let res = BNCreateSymbol(
                         self.ty.into(),
@@ -184,7 +184,7 @@ impl SymbolBuilder {
                         ptr::null_mut(),
                         self.ordinal,
                     );
-                    Symbol::ref_from_raw(res)
+                    Symbol::from_raw(res)
                 }
             } else if let Some(full_name) = full_name {
                 let res = BNCreateSymbol(
@@ -197,7 +197,7 @@ impl SymbolBuilder {
                     ptr::null_mut(),
                     self.ordinal,
                 );
-                Symbol::ref_from_raw(res)
+                Symbol::from_raw(res)
             } else {
                 let res = BNCreateSymbol(
                     self.ty.into(),
@@ -209,7 +209,7 @@ impl SymbolBuilder {
                     ptr::null_mut(),
                     self.ordinal,
                 );
-                Symbol::ref_from_raw(res)
+                Symbol::from_raw(res)
             }
         }
     }
@@ -221,14 +221,6 @@ pub struct Symbol {
 }
 
 impl Symbol {
-    pub(crate) unsafe fn ref_from_raw(raw: *mut BNSymbol) -> Ref<Self> {
-        Ref::new(Self { handle: raw })
-    }
-
-    pub(crate) unsafe fn from_raw(raw: *mut BNSymbol) -> Self {
-        Self { handle: raw }
-    }
-
     /// To create a new symbol, you need to create a symbol builder, customize that symbol, then add `SymbolBuilder::create` it into a `Ref<Symbol>`:
     ///
     /// ```
@@ -283,7 +275,7 @@ impl Symbol {
     pub fn imported_function_from_import_address_symbol(sym: &Symbol, addr: u64) -> Ref<Symbol> {
         unsafe {
             let res = BNImportedFunctionFromImportAddressSymbol(sym.handle, addr);
-            Symbol::ref_from_raw(res)
+            Symbol::from_raw(res)
         }
     }
 }
@@ -313,6 +305,11 @@ impl ToOwned for Symbol {
 }
 
 unsafe impl RefCountable for Symbol {
+    type Raw = *mut BNSymbol;
+    unsafe fn from_raw(raw: Self::Raw) -> Ref<Self> {
+        Ref::new(Self { handle: raw })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewSymbolReference(handle.handle),
@@ -339,7 +336,7 @@ unsafe impl<'a> CoreArrayWrapper<'a> for Symbol {
     type Wrapped = Guard<'a, Symbol>;
 
     unsafe fn wrap_raw(raw: &'a Self::Raw, context: &'a Self::Context) -> Self::Wrapped {
-        Guard::new(Symbol::from_raw(*raw), context)
+        Guard::new(Symbol { handle: *raw }, context)
     }
 }
 

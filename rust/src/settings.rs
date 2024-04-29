@@ -34,12 +34,6 @@ unsafe impl Send for Settings {}
 unsafe impl Sync for Settings {}
 
 impl Settings {
-    pub(crate) unsafe fn from_raw(handle: *mut BNSettings) -> Ref<Self> {
-        debug_assert!(!handle.is_null());
-
-        Ref::new(Self { handle })
-    }
-
     pub fn new<S: BnStrCompatible>(instance_id: S) -> Ref<Self> {
         let instance_id = instance_id.into_bytes_with_nul();
         unsafe {
@@ -457,6 +451,13 @@ impl ToOwned for Settings {
 }
 
 unsafe impl RefCountable for Settings {
+    type Raw = *mut BNSettings;
+    unsafe fn from_raw(handle: Self::Raw) -> Ref<Self> {
+        debug_assert!(!handle.is_null());
+
+        Ref::new(Self { handle })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewSettingsReference(handle.handle),

@@ -57,14 +57,7 @@ pub struct FlowGraphNode<'a> {
 }
 
 impl<'a> FlowGraphNode<'a> {
-    pub(crate) unsafe fn from_raw(raw: *mut BNFlowGraphNode) -> Self {
-        Self {
-            handle: raw,
-            _data: PhantomData,
-        }
-    }
-
-    pub fn new(graph: &FlowGraph) -> Self {
+    pub fn new(graph: &FlowGraph) -> Ref<Self> {
         unsafe { FlowGraphNode::from_raw(BNCreateFlowGraphNode(graph.handle)) }
     }
 
@@ -94,6 +87,14 @@ impl<'a> FlowGraphNode<'a> {
 }
 
 unsafe impl<'a> RefCountable for FlowGraphNode<'a> {
+    type Raw = *mut BNFlowGraphNode;
+    unsafe fn from_raw(raw: *mut BNFlowGraphNode) -> Ref<Self> {
+        Ref::new(Self {
+            handle: raw,
+            _data: PhantomData,
+        })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewFlowGraphNodeReference(handle.handle),
@@ -114,19 +115,13 @@ impl<'a> ToOwned for FlowGraphNode<'a> {
     }
 }
 
-// TODO : FlowGraph are RefCounted objects, this needs to be changed to only return Refs to FlowGraph
-
 #[derive(PartialEq, Eq, Hash)]
 pub struct FlowGraph {
     pub(crate) handle: *mut BNFlowGraph,
 }
 
 impl FlowGraph {
-    pub(crate) unsafe fn from_raw(raw: *mut BNFlowGraph) -> Self {
-        Self { handle: raw }
-    }
-
-    pub fn new() -> Self {
+    pub fn new() -> Ref<Self> {
         unsafe { FlowGraph::from_raw(BNCreateFlowGraph()) }
     }
 
@@ -144,6 +139,11 @@ impl FlowGraph {
 }
 
 unsafe impl RefCountable for FlowGraph {
+    type Raw = *mut BNFlowGraph;
+    unsafe fn from_raw(raw: Self::Raw) -> Ref<Self> {
+        Ref::new(Self { handle: raw })
+    }
+
     unsafe fn inc_ref(handle: &Self) -> Ref<Self> {
         Ref::new(Self {
             handle: BNNewFlowGraphReference(handle.handle),
