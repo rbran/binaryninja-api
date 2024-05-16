@@ -457,6 +457,18 @@ pub fn enterprise_server_url() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerUrl()) }
 }
 
+pub fn set_enterprise_server_url<S: string::BnStrCompatible>(url: S) -> Result<(), ()> {
+    let url = url.into_bytes_with_nul();
+    let result = unsafe {
+        binaryninjacore_sys::BNSetEnterpriseServerUrl(url.as_ref().as_ptr() as *const i8)
+    };
+    if result {
+        Ok(())
+    } else {
+        Err(())
+    }
+}
+
 pub fn enterprise_server_token() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerToken()) }
 }
