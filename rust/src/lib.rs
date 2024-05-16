@@ -482,6 +482,10 @@ pub fn authenticate_enterprise_server_with_method<S: string::BnStrCompatible>(
     }
 }
 
+pub fn deauthenticate_enterprise_server() -> bool {
+    unsafe { binaryninjacore_sys::BNDeauthenticateEnterpriseServer() }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
