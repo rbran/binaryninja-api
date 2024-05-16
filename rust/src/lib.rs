@@ -402,6 +402,10 @@ pub fn version_info() -> VersionInfo {
     }
 }
 
+pub fn serial_number() -> string::BnString {
+    unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetSerialNumber()) }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
