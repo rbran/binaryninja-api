@@ -502,6 +502,10 @@ pub fn release_enterprise_server_license() -> bool {
     unsafe { binaryninjacore_sys::BNReleaseEnterpriseServerLicense() }
 }
 
+pub fn is_enterprise_server_connected() -> bool {
+    unsafe { binaryninjacore_sys::BNIsEnterpriseServerConnected() }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
