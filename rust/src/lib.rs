@@ -449,6 +449,26 @@ pub fn is_database<S: string::BnStrCompatible>(filename: S) -> bool {
     unsafe { binaryninjacore_sys::BNIsDatabase(filename_slice.as_ptr() as *const i8) }
 }
 
+pub fn authenticate_enterprise_server_with_credentials<U, P>(
+    username: U,
+    password: P,
+    remember: bool,
+) -> bool
+where
+    U: string::BnStrCompatible,
+    P: string::BnStrCompatible,
+{
+    let username = username.into_bytes_with_nul();
+    let password = password.into_bytes_with_nul();
+    unsafe {
+        binaryninjacore_sys::BNAuthenticateEnterpriseServerWithCredentials(
+            username.as_ref().as_ptr() as *const i8,
+            password.as_ref().as_ptr() as *const i8,
+            remember,
+        )
+    }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
