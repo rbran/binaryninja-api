@@ -469,6 +469,10 @@ pub fn set_enterprise_server_url<S: string::BnStrCompatible>(url: S) -> Result<(
     }
 }
 
+pub fn enterprise_server_name() -> string::BnString {
+    unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerName()) }
+}
+
 pub fn enterprise_server_token() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerToken()) }
 }
