@@ -498,6 +498,10 @@ pub fn update_enterprise_server_license(timeout: std::time::Duration) -> bool {
     unsafe { binaryninjacore_sys::BNUpdateEnterpriseServerLicense(timeout.as_secs()) }
 }
 
+pub fn release_enterprise_server_license() -> bool {
+    unsafe { binaryninjacore_sys::BNReleaseEnterpriseServerLicense() }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
