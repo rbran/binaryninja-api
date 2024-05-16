@@ -418,6 +418,12 @@ pub fn license_count() -> i32 {
     unsafe { binaryninjacore_sys::BNGetLicenseCount() }
 }
 
+pub fn set_license<S: string::BnStrCompatible>(license: S) {
+    let license = license.into_bytes_with_nul();
+    let license_slice = license.as_ref();
+    unsafe { binaryninjacore_sys::BNSetLicense(license_slice.as_ptr() as *const i8) }
+}
+
 pub fn product() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetProduct()) }
 }
