@@ -489,6 +489,13 @@ pub fn enterprise_server_token() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerToken()) }
 }
 
+pub fn enterprise_license_expiration_time() -> std::time::SystemTime {
+    let m = std::time::Duration::from_secs(unsafe {
+        binaryninjacore_sys::BNGetEnterpriseServerLicenseExpirationTime()
+    });
+    std::time::UNIX_EPOCH + m
+}
+
 pub fn authenticate_enterprise_server_with_credentials<U, P>(
     username: U,
     password: P,
