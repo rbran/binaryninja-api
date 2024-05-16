@@ -502,6 +502,10 @@ pub fn enterprise_license_expiration_time() -> std::time::SystemTime {
     std::time::UNIX_EPOCH + m
 }
 
+pub fn is_enterprise_server_floating_license() -> bool {
+    unsafe { binaryninjacore_sys::BNIsEnterpriseServerFloatingLicense() }
+}
+
 pub fn authenticate_enterprise_server_with_credentials<U, P>(
     username: U,
     password: P,
