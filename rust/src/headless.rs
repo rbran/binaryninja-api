@@ -100,6 +100,10 @@ pub fn shutdown() {
     unsafe { binaryninjacore_sys::BNShutdown() };
 }
 
+pub fn is_shutdown_requested() {
+    unsafe { binaryninjacore_sys::BNIsShutdownRequested() };
+}
+
 /// Prelued-postlued helper function (calls [`init`] and [`shutdown`] for you)
 /// ```no_run
 /// # use binaryninja::binaryview::BinaryViewExt;
