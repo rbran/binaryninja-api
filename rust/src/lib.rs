@@ -422,6 +422,10 @@ pub fn product() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetProduct()) }
 }
 
+pub fn product_type() -> string::BnString {
+    unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetProductType()) }
+}
+
 pub fn license_expiration_time() -> std::time::SystemTime {
     let m = std::time::Duration::from_secs(unsafe {
         binaryninjacore_sys::BNGetLicenseExpirationTime()
