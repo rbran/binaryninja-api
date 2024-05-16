@@ -449,6 +449,10 @@ pub fn is_database<S: string::BnStrCompatible>(filename: S) -> bool {
     unsafe { binaryninjacore_sys::BNIsDatabase(filename_slice.as_ptr() as *const i8) }
 }
 
+pub fn enterprise_server_username() -> string::BnString {
+    unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerUsername()) }
+}
+
 pub fn authenticate_enterprise_server_with_credentials<U, P>(
     username: U,
     password: P,
