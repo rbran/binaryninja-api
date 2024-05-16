@@ -453,6 +453,10 @@ pub fn enterprise_server_username() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerUsername()) }
 }
 
+pub fn enterprise_server_url() -> string::BnString {
+    unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerUrl()) }
+}
+
 pub fn enterprise_server_token() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerToken()) }
 }
