@@ -469,6 +469,19 @@ where
     }
 }
 
+pub fn authenticate_enterprise_server_with_method<S: string::BnStrCompatible>(
+    method: S,
+    remember: bool,
+) -> bool {
+    let method = method.into_bytes_with_nul();
+    unsafe {
+        binaryninjacore_sys::BNAuthenticateEnterpriseServerWithMethod(
+            method.as_ref().as_ptr() as *const i8,
+            remember,
+        )
+    }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
