@@ -414,6 +414,10 @@ pub fn licensed_user_email() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetLicensedUserEmail()) }
 }
 
+pub fn license_count() -> i32 {
+    unsafe { binaryninjacore_sys::BNGetLicenseCount() }
+}
+
 pub fn license_expiration_time() -> std::time::SystemTime {
     let m = std::time::Duration::from_secs(unsafe {
         binaryninjacore_sys::BNGetLicenseExpirationTime()
