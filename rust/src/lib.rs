@@ -512,6 +512,10 @@ pub fn is_enterprise_server_floating_license() -> bool {
     unsafe { binaryninjacore_sys::BNIsEnterpriseServerFloatingLicense() }
 }
 
+pub fn is_enterprise_server_license_still_activated() -> bool {
+    unsafe { binaryninjacore_sys::BNIsEnterpriseServerLicenseStillActivated() }
+}
+
 pub fn authenticate_enterprise_server_with_credentials<U, P>(
     username: U,
     password: P,
@@ -571,6 +575,10 @@ pub fn is_enterprise_server_connected() -> bool {
 
 pub fn is_enterprise_server_authenticated() -> bool {
     unsafe { binaryninjacore_sys::BNIsEnterpriseServerAuthenticated() }
+}
+
+pub fn enterprise_server_last_error() -> string::BnString {
+    unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerLastError()) }
 }
 
 pub fn plugin_abi_version() -> u32 {
