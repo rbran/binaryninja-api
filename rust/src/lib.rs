@@ -494,6 +494,10 @@ pub fn cancel_enterprise_server_authentication() {
     unsafe { binaryninjacore_sys::BNCancelEnterpriseServerAuthentication() }
 }
 
+pub fn update_enterprise_server_license(timeout: std::time::Duration) -> bool {
+    unsafe { binaryninjacore_sys::BNUpdateEnterpriseServerLicense(timeout.as_secs()) }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
