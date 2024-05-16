@@ -410,6 +410,10 @@ pub fn is_license_validated() -> bool {
     unsafe { binaryninjacore_sys::BNIsLicenseValidated() }
 }
 
+pub fn licensed_user_email() -> string::BnString {
+    unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetLicensedUserEmail()) }
+}
+
 pub fn license_expiration_time() -> std::time::SystemTime {
     let m = std::time::Duration::from_secs(unsafe {
         binaryninjacore_sys::BNGetLicenseExpirationTime()
