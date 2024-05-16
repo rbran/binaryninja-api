@@ -384,6 +384,24 @@ pub fn build_id() -> u32 {
     unsafe { binaryninjacore_sys::BNGetBuildId() }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct VersionInfo {
+    pub major: u32,
+    pub minor: u32,
+    pub build: u32,
+    pub channel: string::BnString,
+}
+
+pub fn version_info() -> VersionInfo {
+    let info_raw = unsafe { binaryninjacore_sys::BNGetVersionInfo() };
+    VersionInfo {
+        major: info_raw.major,
+        minor: info_raw.minor,
+        build: info_raw.build,
+        channel: unsafe { string::BnString::from_raw(info_raw.channel) },
+    }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
