@@ -482,6 +482,10 @@ pub fn authenticate_enterprise_server_with_method<S: string::BnStrCompatible>(
     }
 }
 
+pub fn connect_enterprise_server() -> bool {
+    unsafe { binaryninjacore_sys::BNConnectEnterpriseServer() }
+}
+
 pub fn deauthenticate_enterprise_server() -> bool {
     unsafe { binaryninjacore_sys::BNDeauthenticateEnterpriseServer() }
 }
