@@ -406,6 +406,13 @@ pub fn serial_number() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetSerialNumber()) }
 }
 
+pub fn license_expiration_time() -> std::time::SystemTime {
+    let m = std::time::Duration::from_secs(unsafe {
+        binaryninjacore_sys::BNGetLicenseExpirationTime()
+    });
+    std::time::UNIX_EPOCH + m
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
