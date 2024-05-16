@@ -433,6 +433,10 @@ pub fn license_expiration_time() -> std::time::SystemTime {
     std::time::UNIX_EPOCH + m
 }
 
+pub fn is_ui_enabled() -> bool {
+    unsafe { binaryninjacore_sys::BNIsUIEnabled() }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
