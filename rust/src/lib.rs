@@ -502,6 +502,12 @@ pub fn enterprise_license_expiration_time() -> std::time::SystemTime {
     std::time::UNIX_EPOCH + m
 }
 
+pub fn enterprise_server_reservation_time_limit() -> std::time::Duration {
+    std::time::Duration::from_secs(unsafe {
+        binaryninjacore_sys::BNGetEnterpriseServerReservationTimeLimit()
+    })
+}
+
 pub fn is_enterprise_server_floating_license() -> bool {
     unsafe { binaryninjacore_sys::BNIsEnterpriseServerFloatingLicense() }
 }
