@@ -443,6 +443,12 @@ pub fn is_ui_enabled() -> bool {
     unsafe { binaryninjacore_sys::BNIsUIEnabled() }
 }
 
+pub fn is_database<S: string::BnStrCompatible>(filename: S) -> bool {
+    let filename = filename.into_bytes_with_nul();
+    let filename_slice = filename.as_ref();
+    unsafe { binaryninjacore_sys::BNIsDatabase(filename_slice.as_ptr() as *const i8) }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
