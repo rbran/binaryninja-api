@@ -477,6 +477,10 @@ pub fn enterprise_server_id() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerId()) }
 }
 
+pub fn enterprise_server_version() -> u64 {
+    unsafe { binaryninjacore_sys::BNGetEnterpriseServerVersion() }
+}
+
 pub fn enterprise_server_token() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerToken()) }
 }
