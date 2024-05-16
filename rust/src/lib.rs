@@ -380,6 +380,10 @@ pub fn version() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetVersionString()) }
 }
 
+pub fn build_id() -> u32 {
+    unsafe { binaryninjacore_sys::BNGetBuildId() }
+}
+
 pub fn plugin_abi_version() -> u32 {
     binaryninjacore_sys::BN_CURRENT_CORE_ABI_VERSION
 }
