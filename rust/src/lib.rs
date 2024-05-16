@@ -577,6 +577,10 @@ pub fn is_enterprise_server_authenticated() -> bool {
     unsafe { binaryninjacore_sys::BNIsEnterpriseServerAuthenticated() }
 }
 
+pub fn is_enterprise_server_initialized() -> bool {
+    unsafe { binaryninjacore_sys::BNIsEnterpriseServerInitialized() }
+}
+
 pub fn enterprise_server_last_error() -> string::BnString {
     unsafe { string::BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerLastError()) }
 }
