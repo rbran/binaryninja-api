@@ -1333,32 +1333,52 @@ impl Drop for FunctionParameter {
 //////////////
 // Variable
 
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
-pub struct Variable {
-    pub t: BNVariableSourceType,
-    pub index: u32,
-    pub storage: i64,
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug)]
+pub struct Variable(BNVariable);
+
+impl PartialEq for Variable {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.storage == other.0.storage && self.0.index == other.0.index && self.0.type_ == other.0.type_
+    }
+}
+impl Eq for Variable {
+}
+impl Hash for Variable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.type_.hash(state);
+        self.0.index.hash(state);
+        self.0.storage.hash(state);
+    }
 }
 
 impl Variable {
     pub fn new(t: BNVariableSourceType, index: u32, storage: i64) -> Self {
-        Self { t, index, storage }
+        Self(BNVariable { type_: t, index, storage })
     }
 
     pub(crate) unsafe fn from_raw(var: BNVariable) -> Self {
-        Self {
-            t: var.type_,
-            index: var.index,
-            storage: var.storage,
-        }
+        Self(var)
+    }
+
+    pub(crate) fn as_raw(&self) -> &BNVariable {
+        &self.0
     }
 
     pub(crate) fn raw(&self) -> BNVariable {
-        BNVariable {
-            type_: self.t,
-            index: self.index,
-            storage: self.storage,
-        }
+        *self.as_raw()
+    }
+
+    pub fn index(&self) -> u32 {
+        self.0.index
+    }
+
+    pub fn storage(&self) -> i64 {
+        self.0.storage
+    }
+
+    pub fn t(&self) -> BNVariableSourceType {
+        self.0.type_
     }
 }
 

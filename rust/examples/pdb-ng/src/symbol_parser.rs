@@ -700,11 +700,11 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
         let storage = if let Some(reg) = self.convert_register(data.register) {
             vec![ParsedLocation {
-                location: Variable {
-                    t: BNVariableSourceType::RegisterVariableSourceType,
-                    index: 0,
-                    storage: reg,
-                },
+                location: Variable::new(
+                    BNVariableSourceType::RegisterVariableSourceType,
+                    0,
+                    reg,
+                ),
                 base_relative: false,
                 stack_relative: false,
             }]
@@ -1389,11 +1389,11 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     name: data.name.to_string().to_string(),
                     type_: self.lookup_type_conf(&data.type_index, false)?,
                     storage: vec![ParsedLocation {
-                        location: Variable {
-                            t: BNVariableSourceType::StackVariableSourceType,
-                            index: 0,
-                            storage: data.offset as i64,
-                        },
+                        location: Variable::new(
+                            BNVariableSourceType::StackVariableSourceType,
+                            0,
+                            data.offset as i64,
+                        ),
                         base_relative: true,   // !!
                         stack_relative: false, // !!
                     }],
@@ -1407,11 +1407,11 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     name: data.name.to_string().to_string(),
                     type_: self.lookup_type_conf(&data.type_index, false)?,
                     storage: vec![ParsedLocation {
-                        location: Variable {
-                            t: BNVariableSourceType::StackVariableSourceType,
-                            index: 0,
-                            storage: data.offset as i64,
-                        },
+                        location: Variable::new(
+                            BNVariableSourceType::StackVariableSourceType,
+                            0,
+                            data.offset as i64,
+                        ),
                         base_relative: false, // !!
                         stack_relative: true, // !!
                     }],
@@ -1551,11 +1551,11 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         self.log(|| format!("Got DefRangeRegister symbol: {:?}", data));
         if let Some(reg) = self.convert_register(data.register) {
             Ok(Some(ParsedSymbol::Location(ParsedLocation {
-                location: Variable {
-                    t: BNVariableSourceType::RegisterVariableSourceType,
-                    index: 0,
-                    storage: reg,
-                },
+                location: Variable::new(
+                    BNVariableSourceType::RegisterVariableSourceType,
+                    0,
+                    reg,
+                ),
                 base_relative: false,
                 stack_relative: false,
             })))
@@ -1618,11 +1618,11 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             name: data.name.to_string().to_string(),
             type_: self.lookup_type_conf(&data.type_index, false)?,
             storage: vec![ParsedLocation {
-                location: Variable {
-                    t: BNVariableSourceType::StackVariableSourceType,
-                    index: 0,
-                    storage: data.offset as i64,
-                },
+                location: Variable::new(
+                    BNVariableSourceType::StackVariableSourceType,
+                    0,
+                    data.offset as i64,
+                ),
                 base_relative: true,
                 stack_relative: false,
             }],
@@ -1659,19 +1659,12 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     // See if the parameter really is a parameter. Sometimes they don't say they are
                     let mut really_is_param = *is_param;
                     for loc in &new_storage {
-                        match loc {
-                            Variable {
-                                t: BNVariableSourceType::RegisterVariableSourceType,
-                                ..
-                            } => {
+                        match loc.t() {
+                            BNVariableSourceType::RegisterVariableSourceType => {
                                 // Assume register vars are always parameters
                                 really_is_param = true;
                             }
-                            Variable {
-                                t: BNVariableSourceType::StackVariableSourceType,
-                                storage,
-                                ..
-                            } if *storage >= 0 => {
+                            BNVariableSourceType::StackVariableSourceType if loc.storage() >= 0 => {
                                 // Sometimes you can get two locals at the same offset, both rbp+(x > 0)
                                 // I'm guessing from looking at dumps from dia2dump that only the first
                                 // one is considered a parameter, although there are times that I see
@@ -1680,7 +1673,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                                 // and only one would be useful anyway.
                                 // Regardless of the mess, Binja can only handle one parameter per slot
                                 // so we're just going to use the first one.
-                                really_is_param = seen_offsets.insert(*storage);
+                                really_is_param = seen_offsets.insert(loc.storage());
                             }
                             _ => {}
                         }
