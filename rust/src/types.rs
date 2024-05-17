@@ -1816,14 +1816,13 @@ impl StructureBuilder {
     }
 
     pub fn insert_member(&self, member: &StructureMember, overwrite_existing: bool) -> &Self {
-        let ty = member.ty.clone();
         self.insert(
-            ty.as_ref(),
-            member.name.clone(),
-            member.offset,
+            member.ty(),
+            member.name(),
+            member.offset(),
             overwrite_existing,
-            member.access,
-            member.scope,
+            member.access(),
+            member.scope(),
         );
         self
     }
@@ -1917,13 +1916,15 @@ impl StructureBuilder {
     }
 
     pub fn index_by_name(&self, name: &str) -> Option<usize> {
-        self.members().iter().position(|member| member.name == name)
+        self.members()
+            .iter()
+            .position(|member| member.name() == name)
     }
 
     pub fn index_by_offset(&self, offset: u64) -> Option<usize> {
         self.members()
             .iter()
-            .position(|member| member.offset == offset)
+            .position(|member| member.offset() == offset)
     }
 
     // Setters
@@ -1937,12 +1938,7 @@ impl StructureBuilder {
 
     pub fn add_members<'a>(&self, members: impl IntoIterator<Item = &'a StructureMember>) {
         for member in members {
-            self.append(
-                member.ty.as_ref(),
-                &member.name,
-                member.access,
-                member.scope,
-            );
+            self.append(member.ty(), member.name(), member.access(), member.scope());
         }
     }
 
@@ -2101,43 +2097,74 @@ impl Drop for Structure {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct StructureMember {
-    pub ty: Conf<Type>,
-    pub name: String,
-    pub offset: u64,
-    pub access: MemberAccess,
-    pub scope: MemberScope,
-}
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct StructureMember(BNStructureMember);
 
 impl StructureMember {
-    pub fn new(
+    pub fn new<S: BnStrCompatible>(
         ty: Conf<Type>,
-        name: String,
+        name: S,
         offset: u64,
         access: MemberAccess,
         scope: MemberScope,
     ) -> Self {
-        Self {
-            ty,
-            name,
+        Self(BNStructureMember {
+            type_: ty.contents.into_raw(),
+            typeConfidence: ty.confidence,
+            name: BnString::new(name).into_raw(),
             offset,
             access,
             scope,
-        }
+        })
     }
 
     pub(crate) unsafe fn from_raw(handle: BNStructureMember) -> Self {
-        // we don't own the `Type` handle, we should create a new Type, but not
-        // drop the received one
-        let new_type = core::mem::ManuallyDrop::new(Type::from_raw(handle.type_));
-        Self {
-            ty: Conf::new((*new_type).clone(), handle.typeConfidence),
-            name: CStr::from_ptr(handle.name).to_string_lossy().to_string(),
-            offset: handle.offset,
-            access: handle.access,
-            scope: handle.scope,
-        }
+        Self(handle)
+    }
+
+    pub fn ty(&self) -> Conf<&Type> {
+        Conf::new(
+            unsafe { Type::ref_from_raw(&self.0.type_) },
+            self.0.typeConfidence,
+        )
+    }
+
+    pub fn name(&self) -> &str {
+        unsafe { CStr::from_ptr(self.0.name) }.to_str().unwrap()
+    }
+
+    pub fn offset(&self) -> u64 {
+        self.0.offset
+    }
+
+    pub fn access(&self) -> MemberAccess {
+        self.0.access
+    }
+
+    pub fn scope(&self) -> MemberScope {
+        self.0.scope
+    }
+}
+
+impl Drop for StructureMember {
+    fn drop(&mut self) {
+        // drop the name
+        let _ = unsafe { BnString::from_raw(self.0.name) };
+        // drop the type
+        let _ = unsafe { Type::from_raw(self.0.type_) };
+    }
+}
+
+impl Clone for StructureMember {
+    fn clone(&self) -> Self {
+        Self::new(
+            self.ty().map(Clone::clone),
+            unsafe { CStr::from_ptr(self.0.name) },
+            self.offset(),
+            self.access(),
+            self.scope(),
+        )
     }
 }
 
