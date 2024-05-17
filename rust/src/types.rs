@@ -301,6 +301,14 @@ impl TypeBuilder {
         Self { handle }
     }
 
+    pub(crate) unsafe fn ref_from_raw(handle: &*mut BNTypeBuilder) -> &Self {
+        unsafe { mem::transmute(handle) }
+    }
+
+    pub(crate) fn into_raw(self) -> *mut BNTypeBuilder {
+        ManuallyDrop::new(self).handle
+    }
+
     // Chainable terminal
     pub fn finalize(&self) -> Type {
         unsafe { Type::from_raw(BNFinalizeTypeBuilder(self.handle)) }
@@ -695,8 +703,13 @@ impl Type {
         debug_assert!(!handle.is_null());
         Self { handle }
     }
+
     pub(crate) unsafe fn ref_from_raw(handle: &*mut BNType) -> &Self {
         unsafe { mem::transmute(handle) }
+    }
+
+    pub(crate) fn into_raw(self) -> *mut BNType {
+        ManuallyDrop::new(self).handle
     }
 
     pub fn to_builder(&self) -> TypeBuilder {
@@ -1279,6 +1292,14 @@ impl FunctionParameter {
         Self(raw)
     }
 
+    pub(crate) fn ref_from_raw(raw: &BNFunctionParameter) -> &Self {
+        unsafe { mem::transmute(raw) }
+    }
+
+    pub(crate) fn into_raw(self) -> BNFunctionParameter {
+        ManuallyDrop::new(self).0
+    }
+
     pub fn t(&self) -> Conf<&Type> {
         Conf::new(
             unsafe { Type::ref_from_raw(&self.0.type_) },
@@ -1415,40 +1436,44 @@ impl SSAVariable {
 ///////////////
 // NamedVariable
 
-pub struct NamedTypedVariable {
-    var: BNVariable,
-    auto_defined: bool,
-    type_confidence: u8,
-    name: *mut c_char,
-    ty: *mut BNType,
-}
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct NamedTypedVariable(BNVariableNameAndType);
 
 impl NamedTypedVariable {
+    pub(crate) unsafe fn ref_from_raw(raw: &BNVariableNameAndType) -> &Self {
+        core::mem::transmute(raw)
+    }
+
     pub fn name(&self) -> &str {
-        unsafe { CStr::from_ptr(self.name).to_str().unwrap() }
+        unsafe { CStr::from_ptr(self.0.name).to_str().unwrap() }
+    }
+
+    pub(crate) fn into_raw(self) -> BNVariableNameAndType {
+        ManuallyDrop::new(self).0
     }
 
     pub fn var(&self) -> Variable {
-        unsafe { Variable::from_raw(self.var) }
+        unsafe { Variable::from_raw(self.0.var) }
     }
 
     pub fn auto_defined(&self) -> bool {
-        self.auto_defined
+        self.0.autoDefined
     }
 
     pub fn type_confidence(&self) -> u8 {
-        self.type_confidence
+        self.0.typeConfidence
     }
 
-    pub fn var_type(&self) -> Type {
-        unsafe { Type::from_raw(self.ty) }
+    pub fn var_type(&self) -> &Type {
+        unsafe { Type::ref_from_raw(&self.0.type_) }
     }
 }
 
 impl CoreArrayProvider for NamedTypedVariable {
     type Raw = BNVariableNameAndType;
     type Context = ();
-    type Wrapped<'a> = ManuallyDrop<NamedTypedVariable>;
+    type Wrapped<'a> = &'a NamedTypedVariable;
 }
 
 unsafe impl CoreArrayProviderInner for NamedTypedVariable {
@@ -1456,12 +1481,29 @@ unsafe impl CoreArrayProviderInner for NamedTypedVariable {
         BNFreeVariableNameAndTypeList(raw, count)
     }
     unsafe fn wrap_raw<'a>(raw: &'a Self::Raw, _context: &'a Self::Context) -> Self::Wrapped<'a> {
-        ManuallyDrop::new(NamedTypedVariable {
-            var: raw.var,
-            ty: raw.type_,
-            name: raw.name,
-            auto_defined: raw.autoDefined,
-            type_confidence: raw.typeConfidence,
+        NamedTypedVariable::ref_from_raw(raw)
+    }
+}
+
+impl Drop for NamedTypedVariable {
+    fn drop(&mut self) {
+        // drop the type
+        let _ = unsafe { Type::from_raw(self.0.type_) };
+        // drop the name
+        let _ = unsafe { BnString::from_raw(self.0.name) };
+    }
+}
+
+impl Clone for NamedTypedVariable {
+    fn clone(&self) -> Self {
+        Self(BNVariableNameAndType {
+            // clone the type
+            type_: self.var_type().clone().into_raw(),
+            // clone the name
+            name: BnString::new(unsafe { CStr::from_ptr(self.0.name) })
+                .clone()
+                .into_raw(),
+            ..self.0
         })
     }
 }
