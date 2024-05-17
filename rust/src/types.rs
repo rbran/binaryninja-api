@@ -1256,7 +1256,7 @@ impl Drop for Type {
 // FunctionParameter
 
 #[repr(transparent)]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct FunctionParameter(BNFunctionParameter);
 
 impl FunctionParameter {
@@ -1330,6 +1330,16 @@ impl Drop for FunctionParameter {
     }
 }
 
+impl Clone for FunctionParameter {
+    fn clone(&self) -> Self {
+        Self::new(
+            Conf::new(self.t().contents.clone(), self.0.typeConfidence),
+            unsafe { CStr::from_ptr(self.0.name) },
+            self.location(),
+        )
+    }
+}
+
 //////////////
 // Variable
 
@@ -1339,11 +1349,12 @@ pub struct Variable(BNVariable);
 
 impl PartialEq for Variable {
     fn eq(&self, other: &Self) -> bool {
-        self.0.storage == other.0.storage && self.0.index == other.0.index && self.0.type_ == other.0.type_
+        self.0.storage == other.0.storage
+            && self.0.index == other.0.index
+            && self.0.type_ == other.0.type_
     }
 }
-impl Eq for Variable {
-}
+impl Eq for Variable {}
 impl Hash for Variable {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.type_.hash(state);
@@ -1354,7 +1365,11 @@ impl Hash for Variable {
 
 impl Variable {
     pub fn new(t: BNVariableSourceType, index: u32, storage: i64) -> Self {
-        Self(BNVariable { type_: t, index, storage })
+        Self(BNVariable {
+            type_: t,
+            index,
+            storage,
+        })
     }
 
     pub(crate) unsafe fn from_raw(var: BNVariable) -> Self {
