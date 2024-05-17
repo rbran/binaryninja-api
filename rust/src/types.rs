@@ -301,14 +301,6 @@ impl TypeBuilder {
         Self { handle }
     }
 
-    pub(crate) unsafe fn ref_from_raw(handle: &*mut BNTypeBuilder) -> &Self {
-        unsafe { mem::transmute(handle) }
-    }
-
-    pub(crate) fn into_raw(self) -> *mut BNTypeBuilder {
-        ManuallyDrop::new(self).handle
-    }
-
     // Chainable terminal
     pub fn finalize(&self) -> Type {
         unsafe { Type::from_raw(BNFinalizeTypeBuilder(self.handle)) }
@@ -1268,8 +1260,8 @@ impl Drop for Type {
 ///////////////////////
 // FunctionParameter
 
-#[repr(transparent)]
 #[derive(Debug)]
+#[repr(transparent)]
 pub struct FunctionParameter(BNFunctionParameter);
 
 impl FunctionParameter {
@@ -1290,14 +1282,6 @@ impl FunctionParameter {
 
     pub(crate) fn from_raw(raw: BNFunctionParameter) -> Self {
         Self(raw)
-    }
-
-    pub(crate) fn ref_from_raw(raw: &BNFunctionParameter) -> &Self {
-        unsafe { mem::transmute(raw) }
-    }
-
-    pub(crate) fn into_raw(self) -> BNFunctionParameter {
-        ManuallyDrop::new(self).0
     }
 
     pub fn t(&self) -> Conf<&Type> {
@@ -1364,8 +1348,8 @@ impl Clone for FunctionParameter {
 //////////////
 // Variable
 
-#[repr(transparent)]
 #[derive(Clone, Copy, Debug)]
+#[repr(transparent)]
 pub struct Variable(BNVariable);
 
 impl PartialEq for Variable {
@@ -1436,8 +1420,8 @@ impl SSAVariable {
 ///////////////
 // NamedVariable
 
-#[repr(transparent)]
 #[derive(Debug)]
+#[repr(transparent)]
 pub struct NamedTypedVariable(BNVariableNameAndType);
 
 impl NamedTypedVariable {
@@ -1447,10 +1431,6 @@ impl NamedTypedVariable {
 
     pub fn name(&self) -> &str {
         unsafe { CStr::from_ptr(self.0.name).to_str().unwrap() }
-    }
-
-    pub(crate) fn into_raw(self) -> BNVariableNameAndType {
-        ManuallyDrop::new(self).0
     }
 
     pub fn var(&self) -> Variable {
@@ -1528,14 +1508,6 @@ impl EnumerationMember {
         Self(raw)
     }
 
-    pub(crate) unsafe fn ref_from_raw(raw: &BNEnumerationMember) -> &Self {
-        mem::transmute(raw)
-    }
-
-    pub(crate) fn into_raw(self) -> BNEnumerationMember {
-        ManuallyDrop::new(self).0
-    }
-
     pub fn name(&self) -> &str {
         unsafe { CStr::from_ptr(self.0.name) }.to_str().unwrap()
     }
@@ -1567,6 +1539,7 @@ impl Clone for EnumerationMember {
 }
 
 #[derive(PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct EnumerationBuilder {
     pub(crate) handle: *mut BNEnumerationBuilder,
 }
@@ -1661,6 +1634,7 @@ impl Drop for EnumerationBuilder {
 // Enumeration
 
 #[derive(PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct Enumeration {
     pub(crate) handle: *mut BNEnumeration,
 }
@@ -1712,6 +1686,7 @@ impl Drop for Enumeration {
 pub type StructureType = BNStructureVariant;
 
 #[derive(PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct StructureBuilder {
     pub(crate) handle: *mut BNStructureBuilder,
 }
@@ -2032,6 +2007,7 @@ impl Default for StructureBuilder {
 // Structure
 
 #[derive(PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct Structure {
     pub(crate) handle: *mut BNStructure,
 }
@@ -2241,6 +2217,7 @@ impl BaseStructure {
 // NamedTypeReference
 
 #[derive(PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct NamedTypeReference {
     pub(crate) handle: *mut BNNamedTypeReference,
 }
