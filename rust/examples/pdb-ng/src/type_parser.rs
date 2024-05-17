@@ -1617,7 +1617,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 for field in fields {
                     match field {
                         ParsedType::Enumerate(member) => {
-                            enumeration.insert(member.name.clone(), member.value);
+                            enumeration.insert(member.name(), member.value());
                         }
                         e => return Err(anyhow!("Unexpected enumerate member: {:?}", e)),
                     }
@@ -1648,9 +1648,9 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         _finder: &mut ItemFinder<TypeIndex>,
     ) -> Result<Option<Box<ParsedType>>> {
         self.log(|| format!("Got Enumerate type: {:x?}", data));
-        Ok(Some(Box::new(ParsedType::Enumerate(EnumerationMember {
-            name: data.name.to_string().to_string(),
-            value: match data.value {
+        Ok(Some(Box::new(ParsedType::Enumerate(EnumerationMember::new(
+            data.name.to_string().to_string(),
+            match data.value {
                 Variant::U8(v) => v as u64,
                 Variant::U16(v) => v as u64,
                 Variant::U32(v) => v as u64,
@@ -1660,8 +1660,8 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 Variant::I32(v) => (v as i64) as u64,
                 Variant::I64(v) => (v as i64) as u64,
             },
-            is_default: false,
-        }))))
+            false,
+        )))))
     }
 
     fn handle_array_type(

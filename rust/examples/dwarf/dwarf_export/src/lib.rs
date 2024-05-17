@@ -195,11 +195,11 @@ fn export_type(
                 let enum_field_die_uid = dwarf.unit.add(enum_die_uid, constants::DW_TAG_enumerator);
                 dwarf.unit.get_mut(enum_field_die_uid).set(
                     gimli::DW_AT_name,
-                    AttributeValue::String(enum_field.name.as_bytes().to_vec()),
+                    AttributeValue::String(enum_field.name().as_bytes().to_vec()),
                 );
                 dwarf.unit.get_mut(enum_field_die_uid).set(
                     gimli::DW_AT_const_value,
-                    AttributeValue::Data4(enum_field.value as u32),
+                    AttributeValue::Data4(enum_field.value() as u32),
                 );
             }
 

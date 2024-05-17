@@ -1511,28 +1511,58 @@ impl Clone for NamedTypedVariable {
 ////////////////////////
 // EnumerationBuilder
 
-#[derive(Debug, Clone)]
-pub struct EnumerationMember {
-    pub name: String,
-    pub value: u64,
-    pub is_default: bool,
-}
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct EnumerationMember(BNEnumerationMember);
 
 impl EnumerationMember {
-    pub fn new(name: String, value: u64, is_default: bool) -> Self {
-        Self {
-            name,
+    pub fn new<S: BnStrCompatible>(name: S, value: u64, is_default: bool) -> Self {
+        Self(BNEnumerationMember {
+            name: BnString::new(name).into_raw(),
             value,
-            is_default,
-        }
+            isDefault: is_default,
+        })
     }
 
-    pub(crate) unsafe fn from_raw(member: BNEnumerationMember) -> Self {
-        Self {
-            name: raw_to_string(member.name).unwrap(),
-            value: member.value,
-            is_default: member.isDefault,
-        }
+    pub(crate) unsafe fn from_raw(raw: BNEnumerationMember) -> Self {
+        Self(raw)
+    }
+
+    pub(crate) unsafe fn ref_from_raw(raw: &BNEnumerationMember) -> &Self {
+        mem::transmute(raw)
+    }
+
+    pub(crate) fn into_raw(self) -> BNEnumerationMember {
+        ManuallyDrop::new(self).0
+    }
+
+    pub fn name(&self) -> &str {
+        unsafe { CStr::from_ptr(self.0.name) }.to_str().unwrap()
+    }
+
+    pub fn value(&self) -> u64 {
+        self.0.value
+    }
+
+    pub fn is_default(&self) -> bool {
+        self.0.isDefault
+    }
+}
+
+impl Drop for EnumerationMember {
+    fn drop(&mut self) {
+        // drop name
+        let _ = unsafe { BnString::from_raw(self.0.name) };
+    }
+}
+
+impl Clone for EnumerationMember {
+    fn clone(&self) -> Self {
+        Self::new(
+            unsafe { CStr::from_ptr(self.0.name) },
+            self.value(),
+            self.is_default(),
+        )
     }
 }
 
