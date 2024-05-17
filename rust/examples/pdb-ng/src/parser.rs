@@ -338,7 +338,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 }
                 if let Ok(params) = ty.parameters() {
                     for param in params {
-                        self.collect_names(&param.t.contents, unknown_names);
+                        self.collect_names(&param.t().contents, unknown_names);
                     }
                 }
             }

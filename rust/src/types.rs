@@ -37,7 +37,7 @@ use std::{
     fmt,
     fmt::{Debug, Display, Formatter},
     hash::{Hash, Hasher},
-    iter::{zip, IntoIterator},
+    iter::IntoIterator,
     mem,
     mem::ManuallyDrop,
     os::raw::c_char,
@@ -285,6 +285,7 @@ impl From<Conf<i64>> for BNOffsetWithConfidence {
 //////////////////
 // Type Builder
 
+#[repr(transparent)]
 #[derive(PartialEq, Eq, Hash)]
 pub struct TypeBuilder {
     pub(crate) handle: *mut BNTypeBuilder,
@@ -694,6 +695,9 @@ impl Type {
         debug_assert!(!handle.is_null());
         Self { handle }
     }
+    pub(crate) unsafe fn ref_from_raw(handle: &*mut BNType) -> &Self {
+        unsafe { mem::transmute(handle) }
+    }
 
     pub fn to_builder(&self) -> TypeBuilder {
         TypeBuilder::new(self)
@@ -983,24 +987,9 @@ impl Type {
             };
 
         let mut stack_adjust = Conf::<i64>::new(0, min_confidence()).into();
-        let mut raw_parameters = Vec::<BNFunctionParameter>::with_capacity(parameters.len());
-        let mut parameter_name_references = Vec::with_capacity(parameters.len());
-        for parameter in parameters {
-            let raw_name = parameter.name.as_str().into_bytes_with_nul();
-            let location = match &parameter.location {
-                Some(location) => location.raw(),
-                None => unsafe { mem::zeroed() },
-            };
-
-            raw_parameters.push(BNFunctionParameter {
-                name: raw_name.as_slice().as_ptr() as *mut _,
-                type_: parameter.t.contents.handle,
-                typeConfidence: parameter.t.confidence,
-                defaultLocation: parameter.location.is_none(),
-                location,
-            });
-            parameter_name_references.push(raw_name);
-        }
+        // NOTE this is safe because FunctionParameter and BNFunctionParameter
+        // are transparent
+        let raw_parameters: &[BNFunctionParameter] = unsafe { mem::transmute(parameters) };
         let reg_stack_adjust_regs = ptr::null_mut();
         let reg_stack_adjust_values = ptr::null_mut();
 
@@ -1014,7 +1003,7 @@ impl Type {
             Self::from_raw(BNNewTypeReference(BNCreateFunctionType(
                 &mut return_type,
                 &mut raw_calling_convention,
-                raw_parameters.as_mut_ptr(),
+                raw_parameters.as_ptr() as *mut BNFunctionParameter,
                 raw_parameters.len(),
                 &mut variable_arguments,
                 &mut can_return,
@@ -1049,28 +1038,12 @@ impl Type {
             calling_convention.into().into();
         let mut stack_adjust = stack_adjust.into();
 
-        let mut raw_parameters = Vec::<BNFunctionParameter>::with_capacity(parameters.len());
-        let mut parameter_name_references = Vec::with_capacity(parameters.len());
+        // NOTE this is safe because FunctionParameter and BNFunctionParameter
+        // are transparent
+        let raw_parameters: &[BNFunctionParameter] = unsafe { mem::transmute(parameters) };
         let mut name_ptrs = vec![];
         for parameter in parameters {
-            name_ptrs.push(parameter.name.clone());
-        }
-
-        for (name, parameter) in zip(name_ptrs, parameters) {
-            let raw_name = name.as_str().into_bytes_with_nul();
-            let location = match &parameter.location {
-                Some(location) => location.raw(),
-                None => unsafe { mem::zeroed() },
-            };
-
-            raw_parameters.push(BNFunctionParameter {
-                name: raw_name.as_slice().as_ptr() as *mut _,
-                type_: parameter.t.contents.handle,
-                typeConfidence: parameter.t.confidence,
-                defaultLocation: parameter.location.is_none(),
-                location,
-            });
-            parameter_name_references.push(raw_name);
+            name_ptrs.push(parameter.name().to_owned());
         }
 
         // TODO: Update type signature and include these (will be a breaking change)
@@ -1087,7 +1060,7 @@ impl Type {
             Self::from_raw(BNCreateFunctionType(
                 &mut return_type,
                 &mut raw_calling_convention,
-                raw_parameters.as_mut_ptr(),
+                raw_parameters.as_ptr() as *mut BNFunctionParameter,
                 raw_parameters.len(),
                 &mut variable_arguments,
                 &mut can_return,
@@ -1282,50 +1255,78 @@ impl Drop for Type {
 ///////////////////////
 // FunctionParameter
 
+#[repr(transparent)]
 #[derive(Clone, Debug)]
-pub struct FunctionParameter {
-    pub t: Conf<Type>,
-    pub name: String,
-    pub location: Option<Variable>,
-}
+pub struct FunctionParameter(BNFunctionParameter);
 
 impl FunctionParameter {
-    pub fn new<T: Into<Conf<Type>>>(t: T, name: String, location: Option<Variable>) -> Self {
-        Self {
-            t: t.into(),
-            name,
-            location,
+    pub fn new<S, T>(t: T, name: S, location: Option<Variable>) -> Self
+    where
+        S: BnStrCompatible,
+        T: Into<Conf<Type>>,
+    {
+        let t: ManuallyDrop<Conf<Type>> = ManuallyDrop::new(t.into());
+        Self(BNFunctionParameter {
+            name: BnString::new(name).into_raw(),
+            type_: t.contents.handle,
+            typeConfidence: t.confidence,
+            defaultLocation: location.is_none(),
+            location: location.map(|x| x.raw()).unwrap_or_default(),
+        })
+    }
+
+    pub(crate) fn from_raw(raw: BNFunctionParameter) -> Self {
+        Self(raw)
+    }
+
+    pub fn t(&self) -> Conf<&Type> {
+        Conf::new(
+            unsafe { Type::ref_from_raw(&self.0.type_) },
+            self.0.typeConfidence,
+        )
+    }
+
+    pub fn name(&self) -> Cow<str> {
+        if self.0.name.is_null() {
+            if self.0.location.type_ == BNVariableSourceType::RegisterVariableSourceType {
+                format!("reg_{}", self.0.location.storage).into()
+            } else if self.0.location.type_ == BNVariableSourceType::StackVariableSourceType {
+                format!("arg_{}", self.0.location.storage).into()
+            } else {
+                "".into()
+            }
+        } else {
+            unsafe { CStr::from_ptr(self.0.name) }
+                .to_str()
+                .unwrap()
+                .into()
         }
     }
 
-    pub(crate) fn from_raw(member: BNFunctionParameter) -> Self {
-        let name = if member.name.is_null() {
-            if member.location.type_ == BNVariableSourceType::RegisterVariableSourceType {
-                format!("reg_{}", member.location.storage)
-            } else if member.location.type_ == BNVariableSourceType::StackVariableSourceType {
-                format!("arg_{}", member.location.storage)
-            } else {
-                String::new()
-            }
-        } else {
-            unsafe { CStr::from_ptr(member.name) }
-                .to_str()
-                .unwrap()
-                .to_owned()
-        };
+    pub fn set_name<S: BnStrCompatible>(&mut self, name: S) {
+        // drop the old name
+        let _ = unsafe { BnString::from_raw(self.0.name) };
+        // set the new one
+        self.0.name = BnString::new(name).into_raw();
+    }
 
-        Self {
-            t: Conf::new(
-                unsafe { Type::from_raw(BNNewTypeReference(member.type_)) },
-                member.typeConfidence,
-            ),
-            name,
-            location: if member.defaultLocation {
-                None
-            } else {
-                Some(unsafe { Variable::from_raw(member.location) })
-            },
+    pub fn location(&self) -> Option<Variable> {
+        (!self.0.defaultLocation).then(|| unsafe { Variable::from_raw(self.0.location) })
+    }
+
+    pub fn set_location(&mut self, value: Option<Variable>) {
+        self.0.defaultLocation = value.is_none();
+        if let Some(value) = value {
+            self.0.location = value.raw();
         }
+    }
+}
+
+impl Drop for FunctionParameter {
+    fn drop(&mut self) {
+        // only need to drop type and name
+        let _ = unsafe { Type::from_raw(self.0.type_) };
+        let _ = unsafe { BnString::from_raw(self.0.name) };
     }
 }
 

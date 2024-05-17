@@ -964,7 +964,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         // We expect one parameter for each unnamed parameter in the marked up type
         let expected_param_count = fancy_params
             .iter()
-            .filter(|p| p.name.as_str().is_empty())
+            .filter(|p| p.name().is_empty())
             .count();
         // Sanity
         if expected_param_count != raw_params.len() {
@@ -993,8 +993,8 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
         let mut i = 0;
         for p in fancy_params.iter_mut() {
-            if p.name.as_str().is_empty() {
-                if p.t.contents != expected_parsed_params[i].t.contents {
+            if p.name().is_empty() {
+                if p.t().contents != expected_parsed_params[i].t().contents {
                     self.log(|| {
                         format!(
                             "Suspicious parameter {}: {:?} vs {:?}",
@@ -1002,10 +1002,10 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                         )
                     });
                 }
-                if expected_parsed_params[i].name.as_str() == "__formal" {
-                    p.name = format!("__formal{}", i);
+                if expected_parsed_params[i].name() == "__formal" {
+                    p.set_name(format!("__formal{}", i));
                 } else {
-                    p.name = expected_parsed_params[i].name.clone();
+                    p.set_name(&expected_parsed_params[i].name());
                 }
                 i += 1;
             }
@@ -1028,7 +1028,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
 
         let locations = cc.contents.variables_for_parameters(&fancy_params, None);
         for (p, new_location) in fancy_params.iter_mut().zip(locations.into_iter()) {
-            p.location = Some(new_location);
+            p.set_location(Some(new_location));
         }
 
         self.log(|| format!("Final params: {:#x?}", fancy_params));
@@ -1763,7 +1763,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     .parameters()
                     .map_err(|_| anyhow!("no parameters"))?;
                 if let [p] = parameters.as_slice() {
-                    if p.t.contents.type_class() == TypeClass::VoidTypeClass {
+                    if p.t().contents.type_class() == TypeClass::VoidTypeClass {
                         t = Some(Conf::new(
                             Type::function::<_>(
                                 &ty.contents

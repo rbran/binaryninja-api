@@ -477,12 +477,12 @@ fn export_functions(
 
             dwarf.unit.get_mut(param_die_uid).set(
                 gimli::DW_AT_name,
-                AttributeValue::String(parameter.name.as_bytes().to_vec()),
+                AttributeValue::String(parameter.name().as_bytes().to_vec()),
             );
 
             if let Some(target_die_uid) = export_type(
-                format!("{}", parameter.t.contents),
-                &parameter.t.contents,
+                format!("{}", parameter.t().contents),
+                &parameter.t().contents,
                 bv,
                 defined_types,
                 dwarf,
