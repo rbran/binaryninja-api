@@ -514,16 +514,16 @@ impl<D: RiscVDisassembler> architecture::Intrinsic for RiscVIntrinsic<D> {
             }
             Intrinsic::Csrrd => {
                 vec![NameAndType::new(
-                    "csr".to_string(),
+                    "csr",
                     Type::int(4, false),
                     max_confidence(),
                 )]
             }
             Intrinsic::Csrrw | Intrinsic::Csrwr | Intrinsic::Csrrs | Intrinsic::Csrrc => {
                 vec![
-                    NameAndType::new("csr".to_string(), Type::int(4, false), max_confidence()),
+                    NameAndType::new("csr", Type::int(4, false), max_confidence()),
                     NameAndType::new(
-                        "value".to_string(),
+                        "value",
                         Type::int(<D::RegFile as RegFile>::Int::width(), false),
                         min_confidence(),
                     ),
@@ -539,8 +539,8 @@ impl<D: RiscVDisassembler> architecture::Intrinsic for RiscVIntrinsic<D> {
             | Intrinsic::Fmin(size)
             | Intrinsic::Fmax(size) => {
                 vec![
-                    NameAndType::new("".to_string(), Type::float(size as usize), max_confidence()),
-                    NameAndType::new("".to_string(), Type::float(size as usize), max_confidence()),
+                    NameAndType::new("", Type::float(size as usize), max_confidence()),
+                    NameAndType::new("", Type::float(size as usize), max_confidence()),
                 ]
             }
             Intrinsic::Fsqrt(size, _)
@@ -549,28 +549,28 @@ impl<D: RiscVDisassembler> architecture::Intrinsic for RiscVIntrinsic<D> {
             | Intrinsic::FcvtFToI(size, _, _)
             | Intrinsic::FcvtFToU(size, _, _) => {
                 vec![NameAndType::new(
-                    "".to_string(),
+                    "",
                     Type::float(size as usize),
                     max_confidence(),
                 )]
             }
             Intrinsic::FcvtIToF(size, _, _) => {
                 vec![NameAndType::new(
-                    "".to_string(),
+                    "",
                     Type::int(size as usize, true),
                     max_confidence(),
                 )]
             }
             Intrinsic::FcvtUToF(size, _, _) => {
                 vec![NameAndType::new(
-                    "".to_string(),
+                    "",
                     Type::int(size as usize, false),
                     max_confidence(),
                 )]
             }
             Intrinsic::Fence => {
                 vec![NameAndType::new(
-                    "".to_string(),
+                    "",
                     Type::int(4, false),
                     min_confidence(),
                 )]
