@@ -458,7 +458,7 @@ impl DebugInfo {
     pub fn data_variables_by_name<S: BnStrCompatible>(
         &self,
         parser_name: S,
-    ) -> Vec<DataVariableAndName<String>> {
+    ) -> Vec<DataVariableAndName> {
         let parser_name = parser_name.into_bytes_with_nul();
 
         let mut count: usize = 0;
@@ -470,29 +470,27 @@ impl DebugInfo {
             )
         };
 
-        let result: Vec<DataVariableAndName<String>> = unsafe {
-            slice::from_raw_parts_mut(data_variables_ptr, count)
-                .iter()
-                .map(DataVariableAndName::<String>::from_raw)
-                .collect()
+        // NOTE safe because DataVariableAndName and BNDataVariableAndName are transparent
+        let slice: &[DataVariableAndName] = unsafe {
+            slice::from_raw_parts(data_variables_ptr as *const DataVariableAndName, count)
         };
+        let result = slice.to_vec();
 
         unsafe { BNFreeDataVariablesAndName(data_variables_ptr, count) };
         result
     }
 
     /// A generator of all data variables provided by DebugInfoParsers
-    pub fn data_variables(&self) -> Vec<DataVariableAndName<String>> {
+    pub fn data_variables(&self) -> Vec<DataVariableAndName> {
         let mut count: usize = 0;
         let data_variables_ptr =
             unsafe { BNGetDebugDataVariables(self.handle, ptr::null_mut(), &mut count) };
 
-        let result: Vec<DataVariableAndName<String>> = unsafe {
-            slice::from_raw_parts_mut(data_variables_ptr, count)
-                .iter()
-                .map(DataVariableAndName::<String>::from_raw)
-                .collect()
+        // NOTE safe because DataVariableAndName and BNDataVariableAndName are transparent
+        let slice: &[DataVariableAndName] = unsafe {
+            slice::from_raw_parts(data_variables_ptr as *const DataVariableAndName, count)
         };
+        let result = slice.to_vec();
 
         unsafe { BNFreeDataVariablesAndName(data_variables_ptr, count) };
         result
@@ -835,20 +833,8 @@ impl DebugInfo {
         }
     }
 
-    pub fn add_data_variable_info<S: BnStrCompatible>(&self, var: DataVariableAndName<S>) -> bool {
-        let name = var.name.into_bytes_with_nul();
-        unsafe {
-            BNAddDebugDataVariableInfo(
-                self.handle,
-                &BNDataVariableAndName {
-                    address: var.address,
-                    type_: var.t.contents.handle,
-                    name: name.as_ref().as_ptr() as *mut _,
-                    autoDiscovered: var.auto_discovered,
-                    typeConfidence: var.t.confidence,
-                },
-            )
-        }
+    pub fn add_data_variable_info(&self, var: DataVariableAndName) -> bool {
+        unsafe { BNAddDebugDataVariableInfo(self.handle, var.as_raw()) }
     }
 }
 

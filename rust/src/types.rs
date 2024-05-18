@@ -25,7 +25,7 @@ use crate::{
     filemetadata::FileMetadata,
     function::Function,
     rc::*,
-    string::{raw_to_string, BnStrCompatible, BnString},
+    string::{BnStrCompatible, BnString},
     symbol::Symbol,
 };
 
@@ -34,11 +34,10 @@ use std::{
     borrow::Cow,
     collections::HashSet,
     ffi::CStr,
-    fmt,
-    fmt::{Debug, Display, Formatter},
+    fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
     iter::IntoIterator,
-    mem,
+    mem::{self, ManuallyDrop},
     os::raw::c_char,
     ptr, result, slice,
     sync::Mutex,
@@ -2574,36 +2573,40 @@ unsafe impl CoreArrayProviderInner for DataVariable {
 /////////////////////////
 // DataVariableAndName
 
-pub struct DataVariableAndName<S: BnStrCompatible> {
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct DataVariableAndName {
     pub address: u64,
-    pub t: Conf<Type>,
+    pub t: Type,
+    pub name: BnString,
     pub auto_discovered: bool,
-    pub name: S,
+    type_confidence: u8,
 }
 
-impl DataVariableAndName<String> {
-    pub(crate) fn from_raw(var: &BNDataVariableAndName) -> Self {
-        Self {
-            address: var.address,
-            t: Conf::new(unsafe { Type::from_raw(var.type_) }, var.typeConfidence),
-            auto_discovered: var.autoDiscovered,
-            name: raw_to_string(var.name).unwrap(),
-        }
+impl DataVariableAndName {
+    /// get the FFI representation of a borrow
+    pub(crate) fn as_raw(&self) -> &BNDataVariableAndName {
+        // NOTE safe because DataVariableAndName and BNDataVariableAndName is transparent
+        unsafe { core::mem::transmute(self) }
     }
-}
 
-impl<S: BnStrCompatible> DataVariableAndName<S> {
-    pub fn new(address: u64, t: Conf<Type>, auto_discovered: bool, name: S) -> Self {
+    pub fn new<S: BnStrCompatible>(
+        address: u64,
+        t: Conf<Type>,
+        auto_discovered: bool,
+        name: S,
+    ) -> Self {
         Self {
             address,
-            t,
+            t: t.contents,
+            type_confidence: t.confidence,
             auto_discovered,
-            name,
+            name: BnString::new(name),
         }
     }
 
-    pub fn type_with_confidence(&self) -> Conf<Type> {
-        Conf::new(self.t.contents.clone(), self.t.confidence)
+    pub fn type_with_confidence(&self) -> Conf<&Type> {
+        Conf::new(&self.t, self.type_confidence)
     }
 }
 
