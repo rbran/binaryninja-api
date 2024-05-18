@@ -134,9 +134,9 @@ fn export_type(
                     dwarf.unit.add(structure_die_uid, constants::DW_TAG_member);
                 dwarf.unit.get_mut(struct_member_die_uid).set(
                     gimli::DW_AT_name,
-                    AttributeValue::String(struct_member.name.as_bytes().to_vec()),
+                    AttributeValue::String(struct_member.name().as_bytes().to_vec()),
                 );
-                match struct_member.access {
+                match struct_member.access() {
                     MemberAccess::PrivateAccess => {
                         dwarf.unit.get_mut(struct_member_die_uid).set(
                             gimli::DW_AT_accessibility,
@@ -159,12 +159,12 @@ fn export_type(
                 };
                 dwarf.unit.get_mut(struct_member_die_uid).set(
                     gimli::DW_AT_data_member_location,
-                    AttributeValue::Data8(struct_member.offset),
+                    AttributeValue::Data8(struct_member.offset()),
                 );
 
                 if let Some(target_die_uid) = export_type(
-                    format!("{}", struct_member.ty.contents),
-                    &struct_member.ty.contents,
+                    format!("{}", struct_member.ty().contents),
+                    &struct_member.ty().contents,
                     bv,
                     defined_types,
                     dwarf,

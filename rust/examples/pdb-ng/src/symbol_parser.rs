@@ -1942,15 +1942,15 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             .last_mut()
             .ok_or_else(|| anyhow!("Not enough members"))?;
 
-        if last_member.ty.contents.type_class() != TypeClass::ArrayTypeClass {
+        if last_member.ty().contents.type_class() != TypeClass::ArrayTypeClass {
             return Ok(None);
         }
-        if last_member.ty.contents.count() != 0 {
+        if last_member.ty().contents.count() != 0 {
             return Ok(None);
         }
 
         let member_element = last_member
-            .ty
+            .ty()
             .contents
             .element_type()
             .map_err(|_| anyhow!("Last member has no type"))?
@@ -1958,7 +1958,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         let member_width = member_element.width();
 
         // Read member_width bytes from bv starting at that member, until we read all zeroes
-        let member_address = base_address + last_member.offset;
+        let member_address = base_address + last_member.offset();
 
         let mut bytes = Vec::<u8>::new();
         bytes.resize(member_width as usize, 0);
@@ -1976,7 +1976,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         }
 
         // Make a new copy of the type with the correct element count
-        last_member.ty.contents = Type::array(&member_element, element_count);
+        last_member.set_type(Type::array(&member_element, element_count));
 
         Ok(Some((
             Type::structure(&StructureBuilder::from(members).finalize()),
