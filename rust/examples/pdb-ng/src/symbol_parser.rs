@@ -994,7 +994,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         let mut i = 0;
         for p in fancy_params.iter_mut() {
             if p.name().is_empty() {
-                if p.t().contents != expected_parsed_params[i].t().contents {
+                if p.t != expected_parsed_params[i].t {
                     self.log(|| {
                         format!(
                             "Suspicious parameter {}: {:?} vs {:?}",
@@ -1659,12 +1659,12 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     // See if the parameter really is a parameter. Sometimes they don't say they are
                     let mut really_is_param = *is_param;
                     for loc in &new_storage {
-                        match loc.t() {
+                        match loc.t {
                             BNVariableSourceType::RegisterVariableSourceType => {
                                 // Assume register vars are always parameters
                                 really_is_param = true;
                             }
-                            BNVariableSourceType::StackVariableSourceType if loc.storage() >= 0 => {
+                            BNVariableSourceType::StackVariableSourceType if loc.storage >= 0 => {
                                 // Sometimes you can get two locals at the same offset, both rbp+(x > 0)
                                 // I'm guessing from looking at dumps from dia2dump that only the first
                                 // one is considered a parameter, although there are times that I see
@@ -1673,7 +1673,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                                 // and only one would be useful anyway.
                                 // Regardless of the mess, Binja can only handle one parameter per slot
                                 // so we're just going to use the first one.
-                                really_is_param = seen_offsets.insert(loc.storage());
+                                really_is_param = seen_offsets.insert(loc.storage);
                             }
                             _ => {}
                         }
@@ -1756,7 +1756,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     .parameters()
                     .map_err(|_| anyhow!("no parameters"))?;
                 if let [p] = parameters.as_slice() {
-                    if p.t().contents.type_class() == TypeClass::VoidTypeClass {
+                    if p.t.type_class() == TypeClass::VoidTypeClass {
                         t = Some(Conf::new(
                             Type::function::<_>(
                                 &ty.contents
@@ -1942,23 +1942,22 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             .last_mut()
             .ok_or_else(|| anyhow!("Not enough members"))?;
 
-        if last_member.ty().contents.type_class() != TypeClass::ArrayTypeClass {
+        if last_member.ty.type_class() != TypeClass::ArrayTypeClass {
             return Ok(None);
         }
-        if last_member.ty().contents.count() != 0 {
+        if last_member.ty.count() != 0 {
             return Ok(None);
         }
 
         let member_element = last_member
-            .ty()
-            .contents
+            .ty
             .element_type()
             .map_err(|_| anyhow!("Last member has no type"))?
             .contents;
         let member_width = member_element.width();
 
         // Read member_width bytes from bv starting at that member, until we read all zeroes
-        let member_address = base_address + last_member.offset();
+        let member_address = base_address + last_member.offset;
 
         let mut bytes = Vec::<u8>::new();
         bytes.resize(member_width as usize, 0);
@@ -1976,7 +1975,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         }
 
         // Make a new copy of the type with the correct element count
-        last_member.set_type(Type::array(&member_element, element_count));
+        last_member.ty = Type::array(&member_element, element_count);
 
         Ok(Some((
             Type::structure(&StructureBuilder::from(members).finalize()),

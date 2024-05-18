@@ -1256,8 +1256,8 @@ impl Drop for Type {
 pub struct FunctionParameter {
     // NOTE BnString is NonNull, so this is equivalent to a ptr with null being possible
     name: Option<BnString>,
-    type_: Type,
-    type_confidence: u8,
+    pub t: Type,
+    pub type_confidence: u8,
     default_location: bool,
     location: Variable,
 }
@@ -1271,7 +1271,7 @@ impl FunctionParameter {
         let t: Conf<Type> = t.into();
         Self {
             name: Some(BnString::new(name)),
-            type_: t.contents,
+            t: t.contents,
             type_confidence: t.confidence,
             default_location: location.is_none(),
             location: location.unwrap_or(unsafe { Variable::from_raw(Default::default()) }),
@@ -1281,25 +1281,25 @@ impl FunctionParameter {
     pub(crate) unsafe fn from_raw(raw: BNFunctionParameter) -> Self {
         Self {
             name: (!raw.name.is_null()).then(|| BnString::from_raw(raw.name)),
-            type_: Type::from_raw(raw.type_),
+            t: Type::from_raw(raw.type_),
             type_confidence: raw.typeConfidence,
             default_location: raw.defaultLocation,
             location: Variable::from_raw(raw.location),
         }
     }
 
-    pub fn t(&self) -> Conf<&Type> {
-        Conf::new(&self.type_, self.type_confidence)
+    pub fn type_with_confidence(&self) -> Conf<&Type> {
+        Conf::new(&self.t, self.type_confidence)
     }
 
     pub fn name(&self) -> Cow<str> {
         if let Some(name) = &self.name {
             name.as_str().into()
         } else {
-            if self.location.t() == BNVariableSourceType::RegisterVariableSourceType {
-                format!("reg_{}", self.location.storage()).into()
-            } else if self.location.t() == BNVariableSourceType::StackVariableSourceType {
-                format!("arg_{}", self.location.storage()).into()
+            if self.location.t == BNVariableSourceType::RegisterVariableSourceType {
+                format!("reg_{}", self.location.storage).into()
+            } else if self.location.t == BNVariableSourceType::StackVariableSourceType {
+                format!("arg_{}", self.location.storage).into()
             } else {
                 "".into()
             }
@@ -1326,57 +1326,29 @@ impl FunctionParameter {
 //////////////
 // Variable
 
-#[derive(Clone, Copy, Debug)]
-#[repr(transparent)]
-pub struct Variable(BNVariable);
-
-impl PartialEq for Variable {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.storage == other.0.storage
-            && self.0.index == other.0.index
-            && self.0.type_ == other.0.type_
-    }
-}
-impl Eq for Variable {}
-impl Hash for Variable {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.type_.hash(state);
-        self.0.index.hash(state);
-        self.0.storage.hash(state);
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(C)]
+pub struct Variable {
+    pub t: BNVariableSourceType,
+    pub index: u32,
+    pub storage: i64,
 }
 
 impl Variable {
     pub fn new(t: BNVariableSourceType, index: u32, storage: i64) -> Self {
-        Self(BNVariable {
-            type_: t,
-            index,
-            storage,
-        })
+        Self { t, index, storage }
     }
 
     pub(crate) unsafe fn from_raw(var: BNVariable) -> Self {
-        Self(var)
-    }
-
-    pub(crate) fn as_raw(&self) -> &BNVariable {
-        &self.0
+        Self::new(var.type_, var.index, var.storage)
     }
 
     pub(crate) fn raw(&self) -> BNVariable {
-        *self.as_raw()
-    }
-
-    pub fn index(&self) -> u32 {
-        self.0.index
-    }
-
-    pub fn storage(&self) -> i64 {
-        self.0.storage
-    }
-
-    pub fn t(&self) -> BNVariableSourceType {
-        self.0.type_
+        BNVariable {
+            type_: self.t,
+            index: self.index,
+            storage: self.storage,
+        }
     }
 }
 
@@ -1769,12 +1741,12 @@ impl StructureBuilder {
 
     pub fn insert_member(&self, member: &StructureMember, overwrite_existing: bool) -> &Self {
         self.insert(
-            member.ty(),
+            &member.ty,
             member.name(),
-            member.offset(),
+            member.offset,
             overwrite_existing,
-            member.access(),
-            member.scope(),
+            member.access,
+            member.scope,
         );
         self
     }
@@ -1876,7 +1848,7 @@ impl StructureBuilder {
     pub fn index_by_offset(&self, offset: u64) -> Option<usize> {
         self.members()
             .iter()
-            .position(|member| member.offset() == offset)
+            .position(|member| member.offset == offset)
     }
 
     // Setters
@@ -1890,7 +1862,7 @@ impl StructureBuilder {
 
     pub fn add_members<'a>(&self, members: impl IntoIterator<Item = &'a StructureMember>) {
         for member in members {
-            self.append(member.ty(), member.name(), member.access(), member.scope());
+            self.append(&member.ty, member.name(), member.access, member.scope);
         }
     }
 
@@ -2052,12 +2024,12 @@ impl Drop for Structure {
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct StructureMember {
-    type_: Type,
+    pub ty: Type,
     name: BnString,
-    offset: u64,
-    type_confidence: u8,
-    access: MemberAccess,
-    scope: MemberScope,
+    pub offset: u64,
+    pub type_confidence: u8,
+    pub access: MemberAccess,
+    pub scope: MemberScope,
 }
 
 impl StructureMember {
@@ -2069,7 +2041,7 @@ impl StructureMember {
         scope: MemberScope,
     ) -> Self {
         Self {
-            type_: ty.contents,
+            ty: ty.contents,
             type_confidence: ty.confidence,
             name: BnString::new(name),
             offset,
@@ -2080,7 +2052,7 @@ impl StructureMember {
 
     pub(crate) unsafe fn from_raw(handle: BNStructureMember) -> Self {
         Self {
-            type_: Type::from_raw(handle.type_),
+            ty: Type::from_raw(handle.type_),
             type_confidence: handle.typeConfidence,
             name: BnString::from_raw(handle.name),
             offset: handle.offset,
@@ -2089,28 +2061,12 @@ impl StructureMember {
         }
     }
 
-    pub fn ty(&self) -> Conf<&Type> {
-        Conf::new(&self.type_, self.type_confidence)
-    }
-
-    pub fn set_type(&mut self, ty: Type) {
-        self.type_ = ty;
+    pub fn type_with_confidence(&self) -> Conf<&Type> {
+        Conf::new(&self.ty, self.type_confidence)
     }
 
     pub fn name(&self) -> &str {
         self.name.as_str()
-    }
-
-    pub fn offset(&self) -> u64 {
-        self.offset
-    }
-
-    pub fn access(&self) -> MemberAccess {
-        self.access
-    }
-
-    pub fn scope(&self) -> MemberScope {
-        self.scope
     }
 }
 

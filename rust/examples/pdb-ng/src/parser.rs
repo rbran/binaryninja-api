@@ -312,7 +312,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 if let Ok(structure) = ty.get_structure() {
                     if let Ok(members) = structure.members() {
                         for member in members {
-                            self.collect_names(&member.ty().contents, unknown_names);
+                            self.collect_names(&member.ty, unknown_names);
                         }
                     }
                     if let Ok(bases) = structure.base_structures() {
@@ -338,7 +338,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                 }
                 if let Ok(params) = ty.parameters() {
                     for param in params {
-                        self.collect_names(&param.t().contents, unknown_names);
+                        self.collect_names(&param.t, unknown_names);
                     }
                 }
             }

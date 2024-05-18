@@ -948,8 +948,8 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     };
                     bases.push(BaseStructure::new(
                         NamedTypeReference::new(ntr_class, name.into()),
-                        base.offset(),
-                        base.ty().contents.width(),
+                        base.offset,
+                        base.ty.width(),
                     ));
                 }
                 ParsedType::VBaseClass(VirtualBaseClass {
@@ -1205,7 +1205,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         // It looks like pdb stores varargs by having the final argument be void
         let mut is_varargs = false;
         if let Some(last) = arguments.pop() {
-            if last.t().contents.type_class() == TypeClass::VoidTypeClass {
+            if last.t.type_class() == TypeClass::VoidTypeClass {
                 is_varargs = true;
             } else {
                 arguments.push(last);
@@ -1487,7 +1487,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         // It looks like pdb stores varargs by having the final argument be void
         let mut is_varargs = false;
         if let Some(last) = arguments.pop() {
-            if last.t().contents.type_class() == TypeClass::VoidTypeClass {
+            if last.t.type_class() == TypeClass::VoidTypeClass {
                 is_varargs = true;
             } else {
                 arguments.push(last);
