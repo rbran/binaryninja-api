@@ -2530,53 +2530,30 @@ unsafe impl CoreArrayProviderInner for NameAndType {
 //////////////////
 // DataVariable
 
-#[repr(transparent)]
-pub struct DataVariable(pub(crate) BNDataVariable);
-
-// impl DataVariable {
-//     pub(crate) fn from_raw(var: &BNDataVariable) -> Self {
-//         let var = DataVariable(*var);
-//         Self(BNDataVariable {
-//             type_: unsafe { Ref::into_raw(var.t().to_owned()).handle },
-//             ..var.0
-//         })
-//     }
-// }
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct DataVariable {
+    pub address: u64,
+    pub t: Type,
+    pub auto_discovered: bool,
+    type_confidence: u8,
+}
 
 impl DataVariable {
     pub fn address(&self) -> u64 {
-        self.0.address
-    }
-
-    pub fn auto_discovered(&self) -> bool {
-        self.0.autoDiscovered
+        self.address
     }
 
     pub fn t(&self) -> &Type {
-        unsafe { mem::transmute(&self.0.type_) }
+        &self.t
     }
 
     pub fn type_with_confidence(&self) -> Conf<&Type> {
-        Conf::new(self.t(), self.0.typeConfidence)
+        Conf::new(self.t(), self.type_confidence)
     }
 
     pub fn symbol(&self, bv: &BinaryView) -> Option<Symbol> {
-        bv.symbol_by_address(self.0.address).ok()
-    }
-}
-
-impl Clone for DataVariable {
-    fn clone(&self) -> Self {
-        Self(BNDataVariable {
-            type_: self.t().clone().handle,
-            ..self.0
-        })
-    }
-}
-
-impl Drop for DataVariable {
-    fn drop(&mut self) {
-        unsafe { BNFreeType(self.0.type_) }
+        bv.symbol_by_address(self.address).ok()
     }
 }
 
