@@ -39,7 +39,6 @@ use std::{
     hash::{Hash, Hasher},
     iter::IntoIterator,
     mem,
-    mem::ManuallyDrop,
     os::raw::c_char,
     ptr, result, slice,
     sync::Mutex,
@@ -696,14 +695,6 @@ impl Type {
         Self { handle }
     }
 
-    pub(crate) unsafe fn ref_from_raw(handle: &*mut BNType) -> &Self {
-        unsafe { mem::transmute(handle) }
-    }
-
-    pub(crate) fn into_raw(self) -> *mut BNType {
-        ManuallyDrop::new(self).handle
-    }
-
     pub fn to_builder(&self) -> TypeBuilder {
         TypeBuilder::new(self)
     }
@@ -1260,9 +1251,16 @@ impl Drop for Type {
 ///////////////////////
 // FunctionParameter
 
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct FunctionParameter(BNFunctionParameter);
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct FunctionParameter {
+    // NOTE BnString is NonNull, so this is equivalent to a ptr with null being possible
+    name: Option<BnString>,
+    type_: Type,
+    type_confidence: u8,
+    default_location: bool,
+    location: Variable,
+}
 
 impl FunctionParameter {
     pub fn new<S, T>(t: T, name: S, location: Option<Variable>) -> Self
@@ -1270,78 +1268,58 @@ impl FunctionParameter {
         S: BnStrCompatible,
         T: Into<Conf<Type>>,
     {
-        let t: ManuallyDrop<Conf<Type>> = ManuallyDrop::new(t.into());
-        Self(BNFunctionParameter {
-            name: BnString::new(name).into_raw(),
-            type_: t.contents.handle,
-            typeConfidence: t.confidence,
-            defaultLocation: location.is_none(),
-            location: location.map(|x| x.raw()).unwrap_or_default(),
-        })
+        let t: Conf<Type> = t.into();
+        Self {
+            name: Some(BnString::new(name)),
+            type_: t.contents,
+            type_confidence: t.confidence,
+            default_location: location.is_none(),
+            location: location.unwrap_or(unsafe { Variable::from_raw(Default::default()) }),
+        }
     }
 
-    pub(crate) fn from_raw(raw: BNFunctionParameter) -> Self {
-        Self(raw)
+    pub(crate) unsafe fn from_raw(raw: BNFunctionParameter) -> Self {
+        Self {
+            name: (!raw.name.is_null()).then(|| BnString::from_raw(raw.name)),
+            type_: Type::from_raw(raw.type_),
+            type_confidence: raw.typeConfidence,
+            default_location: raw.defaultLocation,
+            location: Variable::from_raw(raw.location),
+        }
     }
 
     pub fn t(&self) -> Conf<&Type> {
-        Conf::new(
-            unsafe { Type::ref_from_raw(&self.0.type_) },
-            self.0.typeConfidence,
-        )
+        Conf::new(&self.type_, self.type_confidence)
     }
 
     pub fn name(&self) -> Cow<str> {
-        if self.0.name.is_null() {
-            if self.0.location.type_ == BNVariableSourceType::RegisterVariableSourceType {
-                format!("reg_{}", self.0.location.storage).into()
-            } else if self.0.location.type_ == BNVariableSourceType::StackVariableSourceType {
-                format!("arg_{}", self.0.location.storage).into()
+        if let Some(name) = &self.name {
+            name.as_str().into()
+        } else {
+            if self.location.t() == BNVariableSourceType::RegisterVariableSourceType {
+                format!("reg_{}", self.location.storage()).into()
+            } else if self.location.t() == BNVariableSourceType::StackVariableSourceType {
+                format!("arg_{}", self.location.storage()).into()
             } else {
                 "".into()
             }
-        } else {
-            unsafe { CStr::from_ptr(self.0.name) }
-                .to_str()
-                .unwrap()
-                .into()
         }
     }
 
     pub fn set_name<S: BnStrCompatible>(&mut self, name: S) {
-        // drop the old name
-        let _ = unsafe { BnString::from_raw(self.0.name) };
-        // set the new one
-        self.0.name = BnString::new(name).into_raw();
+        // drop the old name and set the new one
+        self.name = Some(BnString::new(name));
     }
 
     pub fn location(&self) -> Option<Variable> {
-        (!self.0.defaultLocation).then(|| unsafe { Variable::from_raw(self.0.location) })
+        (!self.default_location).then_some(self.location)
     }
 
     pub fn set_location(&mut self, value: Option<Variable>) {
-        self.0.defaultLocation = value.is_none();
+        self.default_location = value.is_none();
         if let Some(value) = value {
-            self.0.location = value.raw();
+            self.location = value;
         }
-    }
-}
-
-impl Drop for FunctionParameter {
-    fn drop(&mut self) {
-        // only need to drop type and name
-        let _ = unsafe { Type::from_raw(self.0.type_) };
-        let _ = unsafe { BnString::from_raw(self.0.name) };
-    }
-}
-
-impl Clone for FunctionParameter {
-    fn clone(&self) -> Self {
-        Self::new(
-            Conf::new(self.t().contents.clone(), self.0.typeConfidence),
-            unsafe { CStr::from_ptr(self.0.name) },
-            self.location(),
-        )
     }
 }
 
@@ -1420,9 +1398,15 @@ impl SSAVariable {
 ///////////////
 // NamedVariable
 
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct NamedTypedVariable(BNVariableNameAndType);
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct NamedTypedVariable {
+    var: Variable,
+    type_: Type,
+    name: BnString,
+    auto_defined: bool,
+    type_confidence: u8,
+}
 
 impl NamedTypedVariable {
     pub(crate) unsafe fn ref_from_raw(raw: &BNVariableNameAndType) -> &Self {
@@ -1430,23 +1414,23 @@ impl NamedTypedVariable {
     }
 
     pub fn name(&self) -> &str {
-        unsafe { CStr::from_ptr(self.0.name).to_str().unwrap() }
+        self.name.as_str()
     }
 
     pub fn var(&self) -> Variable {
-        unsafe { Variable::from_raw(self.0.var) }
+        self.var
     }
 
     pub fn auto_defined(&self) -> bool {
-        self.0.autoDefined
+        self.auto_defined
     }
 
     pub fn type_confidence(&self) -> u8 {
-        self.0.typeConfidence
+        self.type_confidence
     }
 
     pub fn var_type(&self) -> &Type {
-        unsafe { Type::ref_from_raw(&self.0.type_) }
+        &self.type_
     }
 }
 
@@ -1465,76 +1449,44 @@ unsafe impl CoreArrayProviderInner for NamedTypedVariable {
     }
 }
 
-impl Drop for NamedTypedVariable {
-    fn drop(&mut self) {
-        // drop the type
-        let _ = unsafe { Type::from_raw(self.0.type_) };
-        // drop the name
-        let _ = unsafe { BnString::from_raw(self.0.name) };
-    }
-}
-
-impl Clone for NamedTypedVariable {
-    fn clone(&self) -> Self {
-        Self(BNVariableNameAndType {
-            // clone the type
-            type_: self.var_type().clone().into_raw(),
-            // clone the name
-            name: BnString::new(unsafe { CStr::from_ptr(self.0.name) })
-                .clone()
-                .into_raw(),
-            ..self.0
-        })
-    }
-}
-
 ////////////////////////
 // EnumerationBuilder
 
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct EnumerationMember(BNEnumerationMember);
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct EnumerationMember {
+    name: BnString,
+    value: u64,
+    is_default: bool,
+}
 
 impl EnumerationMember {
     pub fn new<S: BnStrCompatible>(name: S, value: u64, is_default: bool) -> Self {
-        Self(BNEnumerationMember {
-            name: BnString::new(name).into_raw(),
+        Self {
+            name: BnString::new(name),
             value,
-            isDefault: is_default,
-        })
+            is_default: is_default,
+        }
     }
 
     pub(crate) unsafe fn from_raw(raw: BNEnumerationMember) -> Self {
-        Self(raw)
+        Self {
+            name: BnString::from_raw(raw.name),
+            value: raw.value,
+            is_default: raw.isDefault,
+        }
     }
 
     pub fn name(&self) -> &str {
-        unsafe { CStr::from_ptr(self.0.name) }.to_str().unwrap()
+        self.name.as_str()
     }
 
     pub fn value(&self) -> u64 {
-        self.0.value
+        self.value
     }
 
     pub fn is_default(&self) -> bool {
-        self.0.isDefault
-    }
-}
-
-impl Drop for EnumerationMember {
-    fn drop(&mut self) {
-        // drop name
-        let _ = unsafe { BnString::from_raw(self.0.name) };
-    }
-}
-
-impl Clone for EnumerationMember {
-    fn clone(&self) -> Self {
-        Self::new(
-            unsafe { CStr::from_ptr(self.0.name) },
-            self.value(),
-            self.is_default(),
-        )
+        self.is_default
     }
 }
 
@@ -2097,9 +2049,16 @@ impl Drop for Structure {
     }
 }
 
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct StructureMember(BNStructureMember);
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct StructureMember {
+    type_: Type,
+    name: BnString,
+    offset: u64,
+    type_confidence: u8,
+    access: MemberAccess,
+    scope: MemberScope,
+}
 
 impl StructureMember {
     pub fn new<S: BnStrCompatible>(
@@ -2109,62 +2068,49 @@ impl StructureMember {
         access: MemberAccess,
         scope: MemberScope,
     ) -> Self {
-        Self(BNStructureMember {
-            type_: ty.contents.into_raw(),
-            typeConfidence: ty.confidence,
-            name: BnString::new(name).into_raw(),
+        Self {
+            type_: ty.contents,
+            type_confidence: ty.confidence,
+            name: BnString::new(name),
             offset,
             access,
             scope,
-        })
+        }
     }
 
     pub(crate) unsafe fn from_raw(handle: BNStructureMember) -> Self {
-        Self(handle)
+        Self {
+            type_: Type::from_raw(handle.type_),
+            type_confidence: handle.typeConfidence,
+            name: BnString::from_raw(handle.name),
+            offset: handle.offset,
+            access: handle.access,
+            scope: handle.scope,
+        }
     }
 
     pub fn ty(&self) -> Conf<&Type> {
-        Conf::new(
-            unsafe { Type::ref_from_raw(&self.0.type_) },
-            self.0.typeConfidence,
-        )
+        Conf::new(&self.type_, self.type_confidence)
+    }
+
+    pub fn set_type(&mut self, ty: Type) {
+        self.type_ = ty;
     }
 
     pub fn name(&self) -> &str {
-        unsafe { CStr::from_ptr(self.0.name) }.to_str().unwrap()
+        self.name.as_str()
     }
 
     pub fn offset(&self) -> u64 {
-        self.0.offset
+        self.offset
     }
 
     pub fn access(&self) -> MemberAccess {
-        self.0.access
+        self.access
     }
 
     pub fn scope(&self) -> MemberScope {
-        self.0.scope
-    }
-}
-
-impl Drop for StructureMember {
-    fn drop(&mut self) {
-        // drop the name
-        let _ = unsafe { BnString::from_raw(self.0.name) };
-        // drop the type
-        let _ = unsafe { Type::from_raw(self.0.type_) };
-    }
-}
-
-impl Clone for StructureMember {
-    fn clone(&self) -> Self {
-        Self::new(
-            self.ty().map(Clone::clone),
-            unsafe { CStr::from_ptr(self.0.name) },
-            self.offset(),
-            self.access(),
-            self.scope(),
-        )
+        self.scope
     }
 }
 
