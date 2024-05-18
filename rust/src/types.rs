@@ -2516,46 +2516,43 @@ unsafe impl CoreArrayProviderInner for QualifiedNameTypeAndId {
 //////////////////////////
 // NameAndType
 
+#[derive(Debug, Clone)]
+#[repr(C)]
 pub struct NameAndType {
-    pub name: String,
-    pub t: Conf<Type>,
+    name: BnString,
+    pub t: Type,
+    type_confidence: u8,
 }
 
 impl NameAndType {
     pub(crate) fn from_raw(raw: &BNNameAndType) -> Self {
         Self::new(
-            raw_to_string(raw.name).unwrap(),
+            unsafe { BnString::from_raw(raw.name) },
             unsafe { Type::from_raw(raw.type_) },
             raw.typeConfidence,
         )
     }
     pub(crate) fn into_raw(self) -> BNNameAndType {
         BNNameAndType {
-            name: BnString::new(self.name).into_raw(),
-            type_: self.t.contents.handle,
-            typeConfidence: self.t.confidence,
+            name: self.name.into_raw(),
+            type_: self.t.handle,
+            typeConfidence: self.type_confidence,
         }
     }
-    pub fn new(name: String, t: Type, confidence: u8) -> Self {
+    pub fn new<S: BnStrCompatible>(name: S, t: Type, confidence: u8) -> Self {
         Self {
-            name,
-            t: Conf::new(t, confidence),
+            name: BnString::new(name),
+            t,
+            type_confidence: confidence,
         }
     }
 
     pub fn name(&self) -> &str {
-        &self.name
+        self.name.as_str()
     }
 
-    pub fn type_with_confidence(&self) -> Conf<Type> {
-        self.t.clone()
-    }
-}
-
-impl Clone for NameAndType {
-    fn clone(&self) -> Self {
-        let type_ = self.type_with_confidence();
-        Self::new(self.name.clone(), type_.contents, type_.confidence)
+    pub fn type_with_confidence(&self) -> Conf<&Type> {
+        Conf::new(&self.t, self.type_confidence)
     }
 }
 
