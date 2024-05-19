@@ -318,21 +318,21 @@ impl TypeParser for Platform {
             }
 
             for i in slice::from_raw_parts(result.types, result.typeCount) {
-                let name = QualifiedName(i.name);
+                let name = QualifiedName::from_raw(i.name);
                 type_parser_result
                     .types
                     .insert(name.string(), Type::from_raw(i.type_));
             }
 
             for i in slice::from_raw_parts(result.functions, result.functionCount) {
-                let name = QualifiedName(i.name);
+                let name = QualifiedName::from_raw(i.name);
                 type_parser_result
                     .functions
                     .insert(name.string(), Type::from_raw(i.type_));
             }
 
             for i in slice::from_raw_parts(result.variables, result.variableCount) {
-                let name = QualifiedName(i.name);
+                let name = QualifiedName::from_raw(i.name);
                 type_parser_result
                     .variables
                     .insert(name.string(), Type::from_raw(i.type_));

@@ -37,7 +37,7 @@ use std::{
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
     iter::IntoIterator,
-    mem::{self, ManuallyDrop},
+    mem,
     os::raw::c_char,
     ptr, result, slice,
     sync::Mutex,
@@ -286,12 +286,12 @@ impl From<Conf<i64>> for BNOffsetWithConfidence {
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash)]
 pub struct TypeBuilder {
-    pub(crate) handle: *mut BNTypeBuilder,
+    handle: *mut BNTypeBuilder,
 }
 
 impl TypeBuilder {
     pub fn new(t: &Type) -> Self {
-        unsafe { Self::from_raw(BNCreateTypeBuilderFromType(t.handle)) }
+        unsafe { Self::from_raw(BNCreateTypeBuilderFromType(t.as_raw())) }
     }
 
     pub(crate) unsafe fn from_raw(handle: *mut BNTypeBuilder) -> Self {
@@ -554,7 +554,7 @@ impl TypeBuilder {
     }
 
     pub fn structure(structure_type: &Structure) -> Self {
-        unsafe { Self::from_raw(BNCreateStructureTypeBuilder(structure_type.handle)) }
+        unsafe { Self::from_raw(BNCreateStructureTypeBuilder(structure_type.as_raw())) }
     }
 
     pub fn named_type(type_reference: NamedTypeReference) -> Self {
@@ -562,7 +562,7 @@ impl TypeBuilder {
         let mut is_volatile = Conf::new(false, min_confidence()).into();
         unsafe {
             Self::from_raw(BNCreateNamedTypeReferenceBuilder(
-                type_reference.handle,
+                type_reference.as_raw(),
                 0,
                 1,
                 &mut is_const,
@@ -578,7 +578,7 @@ impl TypeBuilder {
             Self::from_raw(BNCreateNamedTypeReferenceBuilderFromTypeAndId(
                 BnString::new("").as_ptr() as *mut _,
                 &mut name.0,
-                t.handle,
+                t.as_raw(),
             ))
         }
     }
@@ -676,7 +676,7 @@ impl Drop for TypeBuilder {
 
 #[repr(transparent)]
 pub struct Type {
-    pub(crate) handle: *mut BNType,
+    handle: *mut BNType,
 }
 
 /// ```no_run
@@ -692,6 +692,19 @@ impl Type {
     pub(crate) unsafe fn from_raw(handle: *mut BNType) -> Self {
         debug_assert!(!handle.is_null());
         Self { handle }
+    }
+
+    pub(crate) unsafe fn ref_from_raw(handle: &*mut BNType) -> &Self {
+        debug_assert!(!handle.is_null());
+        mem::transmute(handle)
+    }
+
+    pub(crate) fn into_raw(self) -> *mut BNType {
+        mem::ManuallyDrop::new(self).handle
+    }
+
+    pub(crate) fn as_raw(&self) -> *mut BNType {
+        self.handle
     }
 
     pub fn to_builder(&self) -> TypeBuilder {
@@ -936,7 +949,7 @@ impl Type {
     }
 
     pub fn structure(structure: &Structure) -> Self {
-        unsafe { Self::from_raw(BNCreateStructureType(structure.handle)) }
+        unsafe { Self::from_raw(BNCreateStructureType(structure.as_raw())) }
     }
 
     pub fn named_type(type_reference: &NamedTypeReference) -> Self {
@@ -944,7 +957,7 @@ impl Type {
         let mut is_volatile = Conf::new(false, min_confidence()).into();
         unsafe {
             Self::from_raw(BNCreateNamedTypeReference(
-                type_reference.handle,
+                type_reference.as_raw(),
                 0,
                 1,
                 &mut is_const,
@@ -1464,7 +1477,7 @@ impl EnumerationMember {
 #[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct EnumerationBuilder {
-    pub(crate) handle: *mut BNEnumerationBuilder,
+    handle: *mut BNEnumerationBuilder,
 }
 
 impl EnumerationBuilder {
@@ -1559,7 +1572,7 @@ impl Drop for EnumerationBuilder {
 #[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Enumeration {
-    pub(crate) handle: *mut BNEnumeration,
+    handle: *mut BNEnumeration,
 }
 
 impl Enumeration {
@@ -1611,7 +1624,7 @@ pub type StructureType = BNStructureVariant;
 #[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct StructureBuilder {
-    pub(crate) handle: *mut BNStructureBuilder,
+    handle: *mut BNStructureBuilder,
 }
 
 /// ```no_run
@@ -1700,7 +1713,7 @@ impl StructureBuilder {
         let mut bases_api = vec![];
         for base in bases {
             bases_api.push(BNBaseStructure {
-                type_: base.ty.handle,
+                type_: base.ty.as_raw(),
                 offset: base.offset,
                 width: base.width,
             });
@@ -1890,7 +1903,7 @@ impl StructureBuilder {
 
 impl From<&Structure> for StructureBuilder {
     fn from(structure: &Structure) -> StructureBuilder {
-        unsafe { Self::from_raw(BNCreateStructureBuilderFromStructure(structure.handle)) }
+        unsafe { Self::from_raw(BNCreateStructureBuilderFromStructure(structure.as_raw())) }
     }
 }
 
@@ -1928,13 +1941,17 @@ impl Default for StructureBuilder {
 #[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Structure {
-    pub(crate) handle: *mut BNStructure,
+    handle: *mut BNStructure,
 }
 
 impl Structure {
     unsafe fn from_raw(handle: *mut BNStructure) -> Self {
         debug_assert!(!handle.is_null());
         Self { handle }
+    }
+
+    pub(crate) fn as_raw(&self) -> *mut BNStructure {
+        self.handle
     }
 
     pub fn builder() -> StructureBuilder {
@@ -2147,7 +2164,7 @@ impl BaseStructure {
 #[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct NamedTypeReference {
-    pub(crate) handle: *mut BNNamedTypeReference,
+    handle: *mut BNNamedTypeReference,
 }
 
 impl NamedTypeReference {
@@ -2155,6 +2172,10 @@ impl NamedTypeReference {
         debug_assert!(!handle.is_null());
 
         Self { handle }
+    }
+
+    pub(crate) fn as_raw(&self) -> *mut BNNamedTypeReference {
+        self.handle
     }
 
     /// Create an NTR to a type that did not come directly from a BinaryView's types list.
@@ -2169,7 +2190,7 @@ impl NamedTypeReference {
             Self::from_raw(BNCreateNamedType(
                 type_class,
                 ptr::null() as *const _,
-                &mut name.0,
+                name.as_raw(),
             ))
         }
     }
@@ -2192,7 +2213,7 @@ impl NamedTypeReference {
             Self::from_raw(BNCreateNamedType(
                 type_class,
                 type_id.as_ref().as_ptr() as _,
-                &mut name.0,
+                name.as_raw(),
             ))
         }
     }
@@ -2259,9 +2280,25 @@ impl Debug for NamedTypeReference {
 // QualifiedName
 
 #[repr(transparent)]
-pub struct QualifiedName(pub(crate) BNQualifiedName);
+pub struct QualifiedName(BNQualifiedName);
 
 impl QualifiedName {
+    pub(crate) unsafe fn from_raw(raw: BNQualifiedName) -> Self {
+        Self(raw)
+    }
+
+    pub(crate) unsafe fn ref_from_raw(handle: &BNQualifiedName) -> &Self {
+        mem::transmute(handle)
+    }
+
+    pub(crate) fn into_raw(self) -> BNQualifiedName {
+        mem::ManuallyDrop::new(self).0
+    }
+
+    pub(crate) fn as_raw(&mut self) -> &mut BNQualifiedName {
+        &mut self.0
+    }
+
     // TODO : I think this is bad
     pub fn string(&self) -> String {
         unsafe {
@@ -2392,15 +2429,15 @@ unsafe impl CoreArrayProviderInner for QualifiedName {
 // QualifiedNameAndType
 
 #[repr(transparent)]
-pub struct QualifiedNameAndType(pub(crate) BNQualifiedNameAndType);
+pub struct QualifiedNameAndType(BNQualifiedNameAndType);
 
 impl QualifiedNameAndType {
     pub fn name(&self) -> &QualifiedName {
-        unsafe { mem::transmute(&self.0.name) }
+        unsafe { QualifiedName::ref_from_raw(&self.0.name) }
     }
 
     pub fn type_object(&self) -> &Type {
-        unsafe { &*(self.0.type_ as *mut Type) }
+        unsafe { Type::ref_from_raw(&self.0.type_) }
     }
 }
 
@@ -2430,7 +2467,7 @@ unsafe impl CoreArrayProviderInner for QualifiedNameAndType {
 // QualifiedNameTypeAndId
 
 #[repr(transparent)]
-pub struct QualifiedNameTypeAndId(pub(crate) BNQualifiedNameTypeAndId);
+pub struct QualifiedNameTypeAndId(BNQualifiedNameTypeAndId);
 
 impl QualifiedNameTypeAndId {
     pub fn name(&self) -> &QualifiedName {
@@ -2487,13 +2524,11 @@ impl NameAndType {
             raw.typeConfidence,
         )
     }
+
     pub(crate) fn into_raw(self) -> BNNameAndType {
-        BNNameAndType {
-            name: self.name.into_raw(),
-            type_: self.t.handle,
-            typeConfidence: self.type_confidence,
-        }
+        unsafe { mem::transmute(self) }
     }
+
     pub fn new<S: BnStrCompatible>(name: S, t: Type, confidence: u8) -> Self {
         Self {
             name: BnString::new(name),

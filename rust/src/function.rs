@@ -299,9 +299,7 @@ impl Function {
     }
 
     pub fn set_user_type(&self, t: Type) {
-        unsafe {
-            BNSetFunctionUserType(self.handle, t.handle);
-        }
+        unsafe { BNSetFunctionUserType(self.handle, t.into_raw()) };
     }
 
     pub fn stack_layout(&self) -> Array<NamedTypedVariable> {
@@ -333,11 +331,7 @@ impl Function {
             BNApplyImportedTypes(
                 self.handle,
                 sym.handle,
-                if let Some(t) = t {
-                    t.handle
-                } else {
-                    core::ptr::null_mut()
-                },
+                t.map(Type::as_raw).unwrap_or(core::ptr::null_mut()),
             );
         }
     }

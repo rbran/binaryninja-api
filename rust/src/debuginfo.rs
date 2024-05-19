@@ -741,7 +741,7 @@ impl DebugInfo {
             BNAddDebugType(
                 self.handle,
                 name.as_ref().as_ptr() as *mut _,
-                new_type.handle,
+                new_type.as_raw(),
                 components_array.as_ptr() as _,
                 components.len(),
             )
@@ -778,7 +778,7 @@ impl DebugInfo {
                     rawName: raw_name,
                     address: new_func.address,
                     type_: match new_func.type_ {
-                        Some(type_) => type_.handle,
+                        Some(type_) => type_.into_raw(),
                         _ => ptr::null_mut(),
                     },
                     platform: match new_func.platform {
@@ -813,7 +813,7 @@ impl DebugInfo {
                     BNAddDebugDataVariable(
                         self.handle,
                         address,
-                        t.handle,
+                        t.as_raw(),
                         name.as_ref().as_ptr() as *mut _,
                         components.as_ptr() as _,
                         components.len(),
@@ -824,7 +824,7 @@ impl DebugInfo {
                 BNAddDebugDataVariable(
                     self.handle,
                     address,
-                    t.handle,
+                    t.as_raw(),
                     ptr::null_mut(),
                     components.as_ptr() as _,
                     components.len(),
