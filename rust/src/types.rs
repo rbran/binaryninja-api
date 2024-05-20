@@ -1263,8 +1263,8 @@ impl Drop for Type {
 ///////////////////////
 // FunctionParameter
 
-#[derive(Debug, Clone)]
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct FunctionParameter {
     // NOTE BnString is NonNull, so this is equivalent to a ptr with null being possible
     name: Option<BnString>,
@@ -1436,8 +1436,8 @@ unsafe impl CoreArrayProviderInner for NamedTypedVariable {
 ////////////////////////
 // EnumerationBuilder
 
-#[derive(Debug, Clone)]
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct EnumerationMember {
     name: BnString,
     value: u64,
@@ -1474,8 +1474,8 @@ impl EnumerationMember {
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct EnumerationBuilder {
     handle: *mut BNEnumerationBuilder,
 }
@@ -1569,8 +1569,8 @@ impl Drop for EnumerationBuilder {
 /////////////////
 // Enumeration
 
-#[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct Enumeration {
     handle: *mut BNEnumeration,
 }
@@ -1621,8 +1621,8 @@ impl Drop for Enumeration {
 
 pub type StructureType = BNStructureVariant;
 
-#[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct StructureBuilder {
     handle: *mut BNStructureBuilder,
 }
@@ -2067,14 +2067,11 @@ impl StructureMember {
     }
 
     pub(crate) unsafe fn from_raw(handle: BNStructureMember) -> Self {
-        Self {
-            ty: Type::from_raw(handle.type_),
-            type_confidence: handle.typeConfidence,
-            name: BnString::from_raw(handle.name),
-            offset: handle.offset,
-            access: handle.access,
-            scope: handle.scope,
-        }
+        unsafe { mem::transmute(handle) }
+    }
+
+    pub(crate) fn as_raw(&mut self) -> &mut BNStructureMember {
+        unsafe { mem::transmute(self) }
     }
 
     pub fn type_with_confidence(&self) -> Conf<&Type> {
@@ -2083,6 +2080,12 @@ impl StructureMember {
 
     pub fn name(&self) -> &str {
         self.name.as_str()
+    }
+}
+
+impl Drop for StructureMember {
+    fn drop(&mut self) {
+        unsafe { BNFreeStructureMember(self.as_raw()) }
     }
 }
 
@@ -2134,6 +2137,7 @@ impl InheritedStructureMember {
     // }
 }
 
+#[repr(C)]
 #[derive(Debug, Clone)]
 pub struct BaseStructure {
     pub ty: NamedTypeReference,
@@ -2161,8 +2165,8 @@ impl BaseStructure {
 ////////////////////////
 // NamedTypeReference
 
-#[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct NamedTypeReference {
     handle: *mut BNNamedTypeReference,
 }
@@ -2428,24 +2432,34 @@ unsafe impl CoreArrayProviderInner for QualifiedName {
 //////////////////////////
 // QualifiedNameAndType
 
-#[repr(transparent)]
-pub struct QualifiedNameAndType(BNQualifiedNameAndType);
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct QualifiedNameAndType {
+    name: QualifiedName,
+    type_: Type,
+}
 
 impl QualifiedNameAndType {
+    pub(crate) fn ref_from_raw(value: &BNQualifiedNameAndType) -> &Self {
+        unsafe { mem::transmute(value) }
+    }
+
+    pub(crate) fn as_raw(&mut self) -> &mut BNQualifiedNameAndType {
+        unsafe { mem::transmute(self) }
+    }
+
     pub fn name(&self) -> &QualifiedName {
-        unsafe { QualifiedName::ref_from_raw(&self.0.name) }
+        &self.name
     }
 
     pub fn type_object(&self) -> &Type {
-        unsafe { Type::ref_from_raw(&self.0.type_) }
+        &self.type_
     }
 }
 
 impl Drop for QualifiedNameAndType {
     fn drop(&mut self) {
-        unsafe {
-            BNFreeQualifiedNameAndType(&mut self.0);
-        }
+        unsafe { BNFreeQualifiedNameAndType(self.as_raw()) };
     }
 }
 
@@ -2459,7 +2473,7 @@ unsafe impl CoreArrayProviderInner for QualifiedNameAndType {
         BNFreeTypeAndNameList(raw, count);
     }
     unsafe fn wrap_raw<'a>(raw: &'a Self::Raw, _context: &'a Self::Context) -> Self::Wrapped<'a> {
-        mem::transmute(raw)
+        Self::ref_from_raw(raw)
     }
 }
 
@@ -2467,6 +2481,7 @@ unsafe impl CoreArrayProviderInner for QualifiedNameAndType {
 // QualifiedNameTypeAndId
 
 #[repr(transparent)]
+#[derive(Debug, Clone)]
 pub struct QualifiedNameTypeAndId(BNQualifiedNameTypeAndId);
 
 impl QualifiedNameTypeAndId {
