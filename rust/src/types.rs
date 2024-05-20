@@ -2602,12 +2602,17 @@ unsafe impl CoreArrayProviderInner for NameAndType {
 #[derive(Debug, Clone)]
 pub struct DataVariable {
     pub address: u64,
-    pub t: Type,
+    // dropped by `BNFreeDataVariable`
+    pub t: mem::ManuallyDrop<Type>,
     pub auto_discovered: bool,
     type_confidence: u8,
 }
 
 impl DataVariable {
+    pub(crate) fn as_raw(&mut self) -> &mut BNDataVariable {
+        unsafe { mem::transmute(self) }
+    }
+
     pub fn address(&self) -> u64 {
         self.address
     }
@@ -2622,6 +2627,12 @@ impl DataVariable {
 
     pub fn symbol(&self, bv: &BinaryView) -> Option<Symbol> {
         bv.symbol_by_address(self.address).ok()
+    }
+}
+
+impl Drop for DataVariable {
+    fn drop(&mut self) {
+        unsafe { BNFreeDataVariable(self.as_raw()) }
     }
 }
 
