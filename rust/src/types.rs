@@ -2657,15 +2657,15 @@ unsafe impl CoreArrayProviderInner for DataVariable {
 #[derive(Debug, Clone)]
 pub struct DataVariableAndName {
     pub address: u64,
-    pub t: Type,
-    pub name: BnString,
+    pub t: mem::ManuallyDrop<Type>,
+    pub name: mem::ManuallyDrop<BnString>,
     pub auto_discovered: bool,
     type_confidence: u8,
 }
 
 impl DataVariableAndName {
     /// get the FFI representation of a borrow
-    pub(crate) fn as_raw(&self) -> &BNDataVariableAndName {
+    pub(crate) fn as_raw(&mut self) -> &mut BNDataVariableAndName {
         // NOTE safe because DataVariableAndName and BNDataVariableAndName is transparent
         unsafe { core::mem::transmute(self) }
     }
@@ -2678,15 +2678,21 @@ impl DataVariableAndName {
     ) -> Self {
         Self {
             address,
-            t: t.contents,
+            t: mem::ManuallyDrop::new(t.contents),
             type_confidence: t.confidence,
             auto_discovered,
-            name: BnString::new(name),
+            name: mem::ManuallyDrop::new(BnString::new(name)),
         }
     }
 
     pub fn type_with_confidence(&self) -> Conf<&Type> {
         Conf::new(&self.t, self.type_confidence)
+    }
+}
+
+impl Drop for DataVariableAndName {
+    fn drop(&mut self) {
+        unsafe { BNFreeDataVariableAndName(self.as_raw()) }
     }
 }
 
