@@ -1942,15 +1942,15 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
             .last_mut()
             .ok_or_else(|| anyhow!("Not enough members"))?;
 
-        if last_member.ty.type_class() != TypeClass::ArrayTypeClass {
+        if last_member.ty().type_class() != TypeClass::ArrayTypeClass {
             return Ok(None);
         }
-        if last_member.ty.count() != 0 {
+        if last_member.ty().count() != 0 {
             return Ok(None);
         }
 
         let member_element = last_member
-            .ty
+            .ty()
             .element_type()
             .map_err(|_| anyhow!("Last member has no type"))?
             .contents;
@@ -1975,7 +1975,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
         }
 
         // Make a new copy of the type with the correct element count
-        last_member.ty = Type::array(&member_element, element_count);
+        *last_member.ty_mut() = Type::array(&member_element, element_count);
 
         Ok(Some((
             Type::structure(&StructureBuilder::from(members).finalize()),

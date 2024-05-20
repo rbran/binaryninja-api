@@ -163,8 +163,8 @@ fn export_type(
                 );
 
                 if let Some(target_die_uid) = export_type(
-                    format!("{}", struct_member.ty),
-                    &struct_member.ty,
+                    format!("{}", struct_member.ty()),
+                    struct_member.ty(),
                     bv,
                     defined_types,
                     dwarf,

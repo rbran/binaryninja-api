@@ -949,7 +949,7 @@ impl<'a, S: Source<'a> + 'a> PDBParserInstance<'a, S> {
                     bases.push(BaseStructure::new(
                         NamedTypeReference::new(ntr_class, name.into()),
                         base.offset,
-                        base.ty.width(),
+                        base.ty().width(),
                     ));
                 }
                 ParsedType::VBaseClass(VirtualBaseClass {

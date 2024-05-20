@@ -694,11 +694,6 @@ impl Type {
         Self { handle }
     }
 
-    pub(crate) unsafe fn ref_from_raw(handle: &*mut BNType) -> &Self {
-        debug_assert!(!handle.is_null());
-        mem::transmute(handle)
-    }
-
     pub(crate) fn into_raw(self) -> *mut BNType {
         mem::ManuallyDrop::new(self).handle
     }
@@ -1764,7 +1759,7 @@ impl StructureBuilder {
 
     pub fn insert_member(&self, member: &StructureMember, overwrite_existing: bool) -> &Self {
         self.insert(
-            &member.ty,
+            member.type_with_confidence(),
             member.name(),
             member.offset,
             overwrite_existing,
@@ -1885,7 +1880,12 @@ impl StructureBuilder {
 
     pub fn add_members<'a>(&self, members: impl IntoIterator<Item = &'a StructureMember>) {
         for member in members {
-            self.append(&member.ty, member.name(), member.access, member.scope);
+            self.append(
+                member.type_with_confidence(),
+                member.name(),
+                member.access,
+                member.scope,
+            );
         }
     }
 
@@ -2052,10 +2052,10 @@ impl Drop for Structure {
 #[derive(Debug, Clone)]
 pub struct StructureMember {
     // those are dropped by BNFreeStructureMember
-    pub ty: mem::ManuallyDrop<Type>,
+    ty: mem::ManuallyDrop<Type>,
     name: mem::ManuallyDrop<BnString>,
     pub offset: u64,
-    pub type_confidence: u8,
+    type_confidence: u8,
     pub access: MemberAccess,
     pub scope: MemberScope,
 }
@@ -2084,6 +2084,14 @@ impl StructureMember {
 
     pub(crate) fn as_raw(&mut self) -> &mut BNStructureMember {
         unsafe { mem::transmute(self) }
+    }
+
+    pub fn ty(&self) -> &Type {
+        &self.ty
+    }
+
+    pub fn ty_mut(&mut self) -> &mut Type {
+        &mut self.ty
     }
 
     pub fn type_with_confidence(&self) -> Conf<&Type> {
@@ -2437,7 +2445,7 @@ unsafe impl CoreArrayProviderInner for QualifiedName {
         BNFreeTypeNameList(raw, count);
     }
     unsafe fn wrap_raw<'a>(raw: &'a Self::Raw, _context: &'a Self::Context) -> Self::Wrapped<'a> {
-        mem::transmute(raw)
+        Self::ref_from_raw(raw)
     }
 }
 
@@ -2496,9 +2504,9 @@ unsafe impl CoreArrayProviderInner for QualifiedNameAndType {
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct QualifiedNameTypeAndId {
-    pub name: mem::ManuallyDrop<QualifiedName>,
+    name: mem::ManuallyDrop<QualifiedName>,
     id: mem::ManuallyDrop<BnString>,
-    pub type_: mem::ManuallyDrop<Type>,
+    type_: mem::ManuallyDrop<Type>,
 }
 
 impl QualifiedNameTypeAndId {
@@ -2603,7 +2611,7 @@ unsafe impl CoreArrayProviderInner for NameAndType {
 pub struct DataVariable {
     pub address: u64,
     // dropped by `BNFreeDataVariable`
-    pub t: mem::ManuallyDrop<Type>,
+    t: mem::ManuallyDrop<Type>,
     pub auto_discovered: bool,
     type_confidence: u8,
 }
@@ -2657,8 +2665,8 @@ unsafe impl CoreArrayProviderInner for DataVariable {
 #[derive(Debug, Clone)]
 pub struct DataVariableAndName {
     pub address: u64,
-    pub t: mem::ManuallyDrop<Type>,
-    pub name: mem::ManuallyDrop<BnString>,
+    t: mem::ManuallyDrop<Type>,
+    name: mem::ManuallyDrop<BnString>,
     pub auto_discovered: bool,
     type_confidence: u8,
 }
