@@ -2480,29 +2480,35 @@ unsafe impl CoreArrayProviderInner for QualifiedNameAndType {
 //////////////////////////
 // QualifiedNameTypeAndId
 
-#[repr(transparent)]
+#[repr(C)]
 #[derive(Debug, Clone)]
-pub struct QualifiedNameTypeAndId(BNQualifiedNameTypeAndId);
+pub struct QualifiedNameTypeAndId {
+    pub name: QualifiedName,
+    id: BnString,
+    pub type_: Type,
+}
 
 impl QualifiedNameTypeAndId {
+    pub fn as_raw(&mut self) -> &mut BNQualifiedNameTypeAndId {
+        unsafe { mem::transmute(self) }
+    }
+
     pub fn name(&self) -> &QualifiedName {
-        unsafe { mem::transmute(&self.0.name) }
+        &self.name
     }
 
     pub fn id(&self) -> &str {
-        unsafe { CStr::from_ptr(self.0.id).to_str().unwrap() }
+        self.id.as_str()
     }
 
     pub fn type_object(&self) -> &Type {
-        unsafe { &*(self.0.type_ as *mut Type) }
+        &self.type_
     }
 }
 
 impl Drop for QualifiedNameTypeAndId {
     fn drop(&mut self) {
-        unsafe {
-            BNFreeQualifiedNameTypeAndId(&mut self.0);
-        }
+        unsafe { BNFreeQualifiedNameTypeAndId(self.as_raw()) };
     }
 }
 
