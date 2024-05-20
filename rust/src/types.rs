@@ -1382,19 +1382,24 @@ impl SSAVariable {
 ///////////////
 // NamedVariable
 
-#[derive(Debug, Clone)]
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct NamedTypedVariable {
     var: Variable,
-    type_: Type,
-    name: BnString,
+    // those are dropped by the `BNFreeVariableNameAndType`
+    type_: mem::ManuallyDrop<Type>,
+    name: mem::ManuallyDrop<BnString>,
     auto_defined: bool,
     type_confidence: u8,
 }
 
 impl NamedTypedVariable {
     pub(crate) unsafe fn ref_from_raw(raw: &BNVariableNameAndType) -> &Self {
-        core::mem::transmute(raw)
+        mem::transmute(raw)
+    }
+
+    pub(crate) fn as_raw(&mut self) -> &mut BNVariableNameAndType {
+        unsafe { mem::transmute(self) }
     }
 
     pub fn name(&self) -> &str {
@@ -1415,6 +1420,12 @@ impl NamedTypedVariable {
 
     pub fn var_type(&self) -> &Type {
         &self.type_
+    }
+}
+
+impl Drop for NamedTypedVariable {
+    fn drop(&mut self) {
+        unsafe { BNFreeVariableNameAndType(self.as_raw()) }
     }
 }
 
@@ -2529,8 +2540,8 @@ unsafe impl CoreArrayProviderInner for QualifiedNameTypeAndId {
 //////////////////////////
 // NameAndType
 
-#[derive(Debug, Clone)]
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct NameAndType {
     name: BnString,
     pub t: Type,
@@ -2585,8 +2596,8 @@ unsafe impl CoreArrayProviderInner for NameAndType {
 //////////////////
 // DataVariable
 
-#[derive(Debug, Clone)]
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct DataVariable {
     pub address: u64,
     pub t: Type,
@@ -2629,8 +2640,8 @@ unsafe impl CoreArrayProviderInner for DataVariable {
 /////////////////////////
 // DataVariableAndName
 
-#[derive(Debug, Clone)]
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct DataVariableAndName {
     pub address: u64,
     pub t: Type,
