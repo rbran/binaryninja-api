@@ -2048,11 +2048,12 @@ impl Drop for Structure {
     }
 }
 
-#[derive(Debug, Clone)]
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct StructureMember {
-    pub ty: Type,
-    name: BnString,
+    // those are dropped by BNFreeStructureMember
+    pub ty: mem::ManuallyDrop<Type>,
+    name: mem::ManuallyDrop<BnString>,
     pub offset: u64,
     pub type_confidence: u8,
     pub access: MemberAccess,
@@ -2068,9 +2069,9 @@ impl StructureMember {
         scope: MemberScope,
     ) -> Self {
         Self {
-            ty: ty.contents,
+            ty: mem::ManuallyDrop::new(ty.contents),
             type_confidence: ty.confidence,
-            name: BnString::new(name),
+            name: mem::ManuallyDrop::new(BnString::new(name)),
             offset,
             access,
             scope,
