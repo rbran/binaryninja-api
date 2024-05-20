@@ -2496,9 +2496,9 @@ unsafe impl CoreArrayProviderInner for QualifiedNameAndType {
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct QualifiedNameTypeAndId {
-    pub name: QualifiedName,
-    id: BnString,
-    pub type_: Type,
+    pub name: mem::ManuallyDrop<QualifiedName>,
+    id: mem::ManuallyDrop<BnString>,
+    pub type_: mem::ManuallyDrop<Type>,
 }
 
 impl QualifiedNameTypeAndId {
