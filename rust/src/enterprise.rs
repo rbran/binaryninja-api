@@ -1,5 +1,7 @@
+use std::marker::PhantomData;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crate::rc::Array;
 use crate::string::{BnStrCompatible, BnString};
 
 pub fn server_username() -> BnString {
@@ -125,4 +127,70 @@ pub fn is_server_initialized() -> bool {
 
 pub fn server_last_error() -> BnString {
     unsafe { BnString::from_raw(binaryninjacore_sys::BNGetEnterpriseServerLastError()) }
+}
+
+pub fn server_authentication_methods() -> (Array<BnString>, Array<BnString>) {
+    let mut methods = core::ptr::null_mut();
+    let mut names = core::ptr::null_mut();
+    let count = unsafe {
+        binaryninjacore_sys::BNGetEnterpriseServerAuthenticationMethods(&mut methods, &mut names)
+    };
+    unsafe { (Array::new(methods, count, ()), Array::new(names, count, ())) }
+}
+
+// NOTE don't implement Clone, Copy, so each callback can only be
+// register/unregistered only once
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct EnterpriseServerCallback<'a> {
+    handle: binaryninjacore_sys::BNEnterpriseServerCallbacks,
+    lifetime: PhantomData<&'a ()>,
+}
+
+pub fn register_license_changed_callback<'a, F: FnMut(bool) + 'a>(
+    callback: F,
+) -> EnterpriseServerCallback<'a> {
+    unsafe extern "C" fn cb_license_status_changed<F: FnMut(bool)>(
+        ctxt: *mut ::std::os::raw::c_void,
+        still_valid: bool,
+    ) {
+        let ctxt: &mut F = &mut *(ctxt as *mut F);
+        ctxt(still_valid)
+    }
+    let mut handle = binaryninjacore_sys::BNEnterpriseServerCallbacks {
+        context: Box::leak(Box::new(callback)) as *mut F as *mut core::ffi::c_void,
+        licenseStatusChanged: Some(cb_license_status_changed::<F>),
+    };
+    unsafe { binaryninjacore_sys::BNRegisterEnterpriseServerNotification(&mut handle) }
+    EnterpriseServerCallback {
+        handle,
+        lifetime: PhantomData,
+    }
+}
+
+pub fn unregister_license_changed_callback(mut callback_handle: EnterpriseServerCallback) {
+    unsafe {
+        binaryninjacore_sys::BNUnregisterEnterpriseServerNotification(&mut callback_handle.handle)
+    }
+}
+
+impl<'a> EnterpriseServerCallback<'a> {
+    /// register the license changed callback
+    pub fn register<F: FnMut(bool) + 'a>(callback: F) -> Self {
+        register_license_changed_callback(callback)
+    }
+
+    /// deregister the license changed callback, equivalent to drop the struct
+    pub fn deregister(self) {
+        // Nothing, just drop self
+    }
+}
+
+impl Drop for EnterpriseServerCallback<'_> {
+    fn drop(&mut self) {
+        unregister_license_changed_callback(EnterpriseServerCallback {
+            handle: self.handle,
+            lifetime: PhantomData,
+        })
+    }
 }
