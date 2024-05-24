@@ -1,6 +1,7 @@
-use crate::rc::{Array, CoreArrayProvider, Guard, CoreArrayProviderInner, Ref, RefCountable};
+use crate::rc::{Array, CoreArrayProvider, CoreArrayProviderInner, Guard, Ref, RefCountable};
 use crate::string::{BnStrCompatible, BnString};
 use binaryninjacore_sys::*;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::os::raw::c_char;
 use std::slice;
@@ -312,6 +313,38 @@ impl Metadata {
             )
         };
         Ok(())
+    }
+
+    pub fn to_json(&self) -> Result<Value, ()> {
+        use BNMetadataType::*;
+        Ok(match self.get_type() {
+            InvalidDataType => Value::Null,
+            BooleanDataType => Value::Bool(self.get_boolean()?),
+            StringDataType => Value::String(self.get_string()?.to_string()),
+            UnsignedIntegerDataType => Value::Number(self.get_unsigned_integer()?.into()),
+            SignedIntegerDataType => Value::Number(self.get_signed_integer()?.into()),
+            DoubleDataType => {
+                Value::Number(serde_json::Number::from_f64(self.get_double()?).ok_or(())?)
+            }
+            RawDataType => Value::String(String::from_utf8(self.get_raw()?).map_err(|_| ())?),
+            ArrayDataType => {
+                let array = self.get_array()?;
+                let result = array
+                    .iter()
+                    .map(|i| i.to_json())
+                    .collect::<Result<_, _>>()?;
+                Value::Array(result)
+            }
+            KeyValueDataType => {
+                let hashmap = self.get_value_store()?;
+                Value::Object(
+                    hashmap
+                        .into_iter()
+                        .map(|(k, v)| Ok((k.to_string(), v.to_json()?)))
+                        .collect::<Result<_, _>>()?,
+                )
+            }
+        })
     }
 }
 
