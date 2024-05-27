@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use binaryninjacore_sys::BNFileAccessor;
+use binaryninjacore_sys::*;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
+use std::path::PathBuf;
 use std::slice;
+
+use crate::databuffer::DataBuffer;
+use crate::string::BnString;
 
 pub struct FileAccessor<'a> {
     pub(crate) api_object: BNFileAccessor,
@@ -86,5 +90,63 @@ impl<'a> FileAccessor<'a> {
             },
             _ref: PhantomData,
         }
+    }
+}
+
+pub struct TemporaryFile(*mut BNTemporaryFile);
+
+impl TemporaryFile {
+    pub fn new_from_contents(value: &DataBuffer) -> Result<Self, ()> {
+        let new = unsafe { BNCreateTemporaryFileWithContents(value.as_raw()) };
+        if new.is_null() {
+            return Err(());
+        }
+        Ok(Self(new))
+    }
+
+    /// create a new reference to the same file
+    pub fn clone_reference(&self) -> Self {
+        let new = unsafe { BNNewTemporaryFileReference(self.0) };
+        assert!(!new.is_null());
+        Self(new)
+    }
+
+    pub fn path(&self) -> PathBuf {
+        let path = unsafe { BnString::from_raw(BNGetTemporaryFilePath(self.0)) };
+        PathBuf::from(path.to_string())
+    }
+
+    // TODO is databuffer lifetime associated with the TemporaryFile?
+    // can we modify the DataBuffer without affecting the temp file?
+    pub fn contents(&self) -> DataBuffer {
+        unsafe { DataBuffer::from_raw(BNGetTemporaryFileContents(self.0)) }
+    }
+}
+
+impl Default for TemporaryFile {
+    fn default() -> Self {
+        Self(unsafe { BNCreateTemporaryFile() })
+    }
+}
+
+impl Drop for TemporaryFile {
+    fn drop(&mut self) {
+        unsafe { BNFreeTemporaryFile(self.0) }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::databuffer::DataBuffer;
+
+    use super::TemporaryFile;
+
+    #[test]
+    pub fn create_tmp_file() {
+        const DATA: &[u8] = b"test 123";
+        let data = DataBuffer::new(DATA).unwrap();
+        let tmp_file = TemporaryFile::new_from_contents(&data).unwrap();
+        let data_read = tmp_file.contents();
+        assert_eq!(data_read.get_data(), DATA);
     }
 }
