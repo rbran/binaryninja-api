@@ -16,7 +16,7 @@ use crate::{
     binaryview,
     metadata::Metadata,
     rc::{self, Ref},
-    string::BnStrCompatible,
+    string::{BnStrCompatible, IntoJson},
 };
 
 use std::env;
@@ -146,11 +146,11 @@ impl Session {
     /// let bv = headless_session.load_with_options("/bin/cat", true, Some(settings))
     ///     .expect("Couldn't open `/bin/cat`");
     /// ```
-    pub fn load_with_options(
+    pub fn load_with_options<S: BnStrCompatible, O: IntoJson>(
         &self,
         filename: &str,
         update_analysis_and_wait: bool,
-        options: Option<Ref<Metadata>>,
+        options: Option<O>,
     ) -> Option<rc::Ref<binaryview::BinaryView>> {
         crate::load_with_options(filename, update_analysis_and_wait, options)
     }
