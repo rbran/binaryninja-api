@@ -138,6 +138,7 @@ pub mod debuginfo;
 pub mod demangle;
 pub mod disassembly;
 pub mod downloadprovider;
+pub mod externallibrary;
 pub mod fileaccessor;
 pub mod filemetadata;
 pub mod flowgraph;
