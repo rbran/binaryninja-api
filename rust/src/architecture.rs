@@ -2100,20 +2100,15 @@ where
             let flag_conditions = group.flag_conditions();
 
             unsafe {
-                let allocation_size =
-                    mem::size_of::<BNFlagConditionForSemanticClass>() * flag_conditions.len();
-                let result = libc::malloc(allocation_size) as *mut BNFlagConditionForSemanticClass;
-                let out_slice = slice::from_raw_parts_mut(result, flag_conditions.len());
-
-                for (i, (class, cond)) in flag_conditions.iter().enumerate() {
-                    let out = out_slice.get_unchecked_mut(i);
-
-                    out.semanticClass = class.id();
-                    out.condition = *cond;
-                }
-
                 *count = flag_conditions.len();
-                result
+                // SAFETY dropped by the `cb_free_flag_conditions_for_semantic_flag_group`
+                // function
+                LeakFat::leak(flag_conditions.iter().map(|(class, cond)| {
+                    BNFlagConditionForSemanticClass {
+                        semanticClass: class.id(),
+                        condition: *cond,
+                    }
+                }))
             }
         } else {
             unsafe {
@@ -2123,15 +2118,11 @@ where
         }
     }
 
-    extern "C" fn cb_free_flag_conditions_for_semantic_flag_group<A>(
+    extern "C" fn cb_free_flag_conditions_for_semantic_flag_group(
         _ctxt: *mut c_void,
         conds: *mut BNFlagConditionForSemanticClass,
-    ) where
-        A: 'static + Architecture<Handle = CustomArchitectureHandle<A>> + Send + Sync,
-    {
-        unsafe {
-            libc::free(conds as *mut _);
-        }
+    ) {
+        unsafe { LeakFat::drop(conds) }
     }
 
     extern "C" fn cb_flags_written_by_write_type<A>(
@@ -2727,7 +2718,7 @@ where
             cb_flag_conditions_for_semantic_flag_group::<A>,
         ),
         freeFlagConditionsForSemanticFlagGroup: Some(
-            cb_free_flag_conditions_for_semantic_flag_group::<A>,
+            cb_free_flag_conditions_for_semantic_flag_group,
         ),
 
         getFlagsWrittenByFlagWriteType: Some(cb_flags_written_by_write_type::<A>),
@@ -2906,5 +2897,44 @@ pub fn llvm_assemble(
         Ok(out)
     } else {
         Err(errors)
+    }
+}
+
+#[repr(C)]
+struct LeakFat<T: ?Sized> {
+    len: usize,
+    value: T,
+}
+
+impl<T: Sized> LeakFat<[T]> {
+    #[inline]
+    unsafe fn leak<I>(data: I) -> *mut T
+    where
+        I: IntoIterator<Item = T> + ExactSizeIterator,
+    {
+        let layout_usize = std::alloc::Layout::new::<usize>();
+        let layout_array = std::alloc::Layout::array::<T>(data.len()).unwrap();
+        let (layout, offset_array) = layout_usize.extend(layout_array).unwrap();
+        let result = unsafe { std::alloc::alloc(layout) };
+        // get the pointer to the value field, AKA add the offset of the value
+        // field
+        (result as usize + offset_array) as *mut _
+    }
+
+    unsafe fn drop(array: *mut T) {
+        // fix the pointer to the start of the struct, AKA subtract the offset
+        // of the value field
+        let layout_usize = std::alloc::Layout::new::<usize>();
+        let layout_array = std::alloc::Layout::array::<T>(1).unwrap();
+        let (_, offset_array) = layout_usize.extend(layout_array).unwrap();
+        let ptr = array as usize - offset_array;
+
+        // create the layout with the right len
+        type TmpType<T> = LeakFat<[T; 0]>;
+        let tmp_ptr = &*(ptr as *const TmpType<T>);
+        let layout_array = std::alloc::Layout::array::<T>(tmp_ptr.len).unwrap();
+        let (layout, _) = layout_usize.extend(layout_array).unwrap();
+
+        std::alloc::dealloc(ptr as *mut u8, layout);
     }
 }
