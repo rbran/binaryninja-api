@@ -159,6 +159,7 @@ pub mod project;
 pub mod rc;
 pub mod references;
 pub mod relocation;
+pub mod secretsprovider;
 pub mod section;
 pub mod segment;
 pub mod settings;
