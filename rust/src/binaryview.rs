@@ -29,6 +29,7 @@ use std::{ops, ptr, result, slice};
 
 use crate::architecture::{Architecture, CoreArchitecture};
 use crate::basicblock::BasicBlock;
+use crate::component::{Component, ComponentBuilder, IntoComponentGuid};
 use crate::databuffer::DataBuffer;
 use crate::debuginfo::DebugInfo;
 use crate::fileaccessor::FileAccessor;
@@ -1386,6 +1387,17 @@ pub trait BinaryViewExt: BinaryViewBase {
         core::ptr::NonNull::new(result).map(|h| unsafe { TypeLibrary::from_raw(h) })
     }
 
+    fn component_by_guid<S: BnStrCompatible>(&self, guid: S) -> Option<Component> {
+        let name = guid.into_bytes_with_nul();
+        let result = unsafe {
+            BNGetComponentByGuid(
+                self.as_ref().handle,
+                name.as_ref().as_ptr() as *const core::ffi::c_char,
+            )
+        };
+        core::ptr::NonNull::new(result).map(|h| unsafe { Component::from_raw(h) })
+    }
+
     /// Should be called by custom py:py:class:`BinaryView` implementations
     /// when they have successfully imported an object from a type library (eg a symbol's type).
     /// Values recorded with this function will then be queryable via [BinaryViewExt::lookup_imported_object_library].
@@ -1568,6 +1580,50 @@ pub trait BinaryViewExt: BinaryViewBase {
         let lib = unsafe { TypeLibrary::from_raw(ptr::NonNull::new(result_lib)?) };
         let name = QualifiedName(result_name);
         Some((lib, name))
+    }
+
+    fn root_component(&self) -> Option<Component> {
+        let result = unsafe { BNGetRootComponent(self.as_ref().handle) };
+        core::ptr::NonNull::new(result).map(|h| unsafe { Component::from_raw(h) })
+    }
+
+    fn component_builder(&self) -> ComponentBuilder {
+        ComponentBuilder::new_from_raw(self.as_ref().handle)
+    }
+
+    fn component_by_path<P: BnStrCompatible>(&self, path: P) -> Option<Component> {
+        let path = path.into_bytes_with_nul();
+        let result = unsafe {
+            BNGetComponentByPath(
+                self.as_ref().handle,
+                path.as_ref().as_ptr() as *const core::ffi::c_char,
+            )
+        };
+        core::ptr::NonNull::new(result).map(|h| unsafe { Component::from_raw(h) })
+    }
+
+    fn remove_component(&self, component: &Component) -> bool {
+        unsafe { BNRemoveComponent(self.as_ref().handle, component.as_raw()) }
+    }
+
+    fn remove_component_by_guid<P: IntoComponentGuid>(&self, guid: P) -> bool {
+        let path = guid.component_guid();
+        unsafe { BNRemoveComponentByGuid(self.as_ref().handle, path.as_ptr()) }
+    }
+
+    fn data_variable_parent_components(
+        &self,
+        data_variable: &DataVariable,
+    ) -> Array<Component> {
+        let mut count = 0;
+        let result = unsafe {
+            BNGetDataVariableParentComponents(
+                self.as_ref().handle,
+                data_variable.address(),
+                &mut count,
+            )
+        };
+        unsafe { Array::new(result, count, ()) }
     }
 }
 

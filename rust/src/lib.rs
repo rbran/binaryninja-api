@@ -138,6 +138,7 @@ pub mod databuffer;
 pub mod debuginfo;
 pub mod demangle;
 pub mod disassembly;
+pub mod component;
 pub mod downloadprovider;
 pub mod enterprise;
 pub mod fileaccessor;
