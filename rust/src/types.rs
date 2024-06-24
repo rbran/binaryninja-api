@@ -1350,12 +1350,12 @@ unsafe impl CoreArrayProviderInner for ConfTypeList<'_> {
 
 pub struct ComponentReferencedTypes;
 impl CoreArrayProvider for ComponentReferencedTypes {
-    type Raw= *mut BNType;
-    type Context=  ();
+    type Raw = *mut BNType;
+    type Context = ();
     type Wrapped<'a> = &'a Type;
 }
 
-unsafe impl CoreArrayProviderInner for ComponentReferencedTypes{
+unsafe impl CoreArrayProviderInner for ComponentReferencedTypes {
     unsafe fn free(raw: *mut Self::Raw, count: usize, _context: &Self::Context) {
         BNComponentFreeReferencedTypes(raw, count)
     }
@@ -1576,7 +1576,6 @@ pub struct NamedTypedVariable {
 }
 
 impl NamedTypedVariable {
-
     pub fn new(var: Variable, name: String, ty: Conf<Ref<Type>>, auto_defined: bool) -> Self {
         Self {
             name,
@@ -1591,7 +1590,7 @@ impl NamedTypedVariable {
             var: Variable::from_raw(var.var),
             auto_defined: var.autoDefined,
             name: CStr::from_ptr(var.name).to_str().unwrap().to_string(),
-            ty: Conf::new(Type::ref_from_raw(var.type_), var.typeConfidence)
+            ty: Conf::new(Type::ref_from_raw(var.type_), var.typeConfidence),
         }
     }
 
