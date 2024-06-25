@@ -174,6 +174,7 @@ pub mod typearchive;
 pub mod typelibrary;
 pub mod typeparser;
 pub mod types;
+pub mod update;
 pub mod workflow;
 
 use std::path::PathBuf;
