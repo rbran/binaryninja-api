@@ -175,6 +175,7 @@ pub mod typelibrary;
 pub mod typeparser;
 pub mod types;
 pub mod update;
+pub mod websocketprovider;
 pub mod workflow;
 
 use std::path::PathBuf;
