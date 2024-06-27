@@ -162,6 +162,7 @@ pub mod rc;
 pub mod references;
 pub mod relocation;
 pub mod repository;
+pub mod scriptingprovider;
 pub mod secretsprovider;
 pub mod section;
 pub mod segment;
