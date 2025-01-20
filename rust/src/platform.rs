@@ -27,7 +27,7 @@ use crate::{
 use binaryninjacore_sys::*;
 use std::fmt::Debug;
 use std::ptr::NonNull;
-use std::{borrow::Borrow, ffi, ptr};
+use std::{ffi, ptr};
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct Platform {
@@ -39,25 +39,23 @@ unsafe impl Sync for Platform {}
 
 macro_rules! cc_func {
     ($get_name:ident, $get_api:ident, $set_name:ident, $set_api:ident) => {
-        pub fn $get_name(&self) -> Option<Ref<CallingConvention<CoreArchitecture>>> {
-            let arch = self.arch();
-
+        pub fn $get_name(&self) -> Option<Ref<CallingConvention>> {
             unsafe {
                 let cc = $get_api(self.handle);
 
                 if cc.is_null() {
                     None
                 } else {
-                    Some(CallingConvention::ref_from_raw(cc, arch))
+                    Some(CallingConvention::ref_from_raw(cc))
                 }
             }
         }
 
-        pub fn $set_name<A: Architecture>(&self, cc: &CallingConvention<A>) {
+        pub fn $set_name(&self, cc: &CallingConvention) {
             let arch = self.arch();
 
             assert!(
-                cc.arch_handle.borrow().as_ref().handle == arch.handle,
+                cc.arch().handle == arch.handle,
                 "use of calling convention with non-matching Platform architecture!"
             );
 
@@ -233,11 +231,11 @@ impl Platform {
         BNSetPlatformSystemCallConvention
     );
 
-    pub fn calling_conventions(&self) -> Array<CallingConvention<CoreArchitecture>> {
+    pub fn calling_conventions(&self) -> Array<CallingConvention> {
         unsafe {
             let mut count = 0;
             let handles = BNGetPlatformCallingConventions(self.handle, &mut count);
-            Array::new(handles, count, self.arch())
+            Array::new(handles, count, ())
         }
     }
 

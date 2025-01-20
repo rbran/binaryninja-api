@@ -348,9 +348,7 @@ pub fn from_bn_type_internal(
     }
 }
 
-pub fn from_bn_calling_convention<A: BNArchitecture>(
-    raw_cc: BNRef<BNCallingConvention<A>>,
-) -> CallingConvention {
+pub fn from_bn_calling_convention(raw_cc: BNRef<BNCallingConvention>) -> CallingConvention {
     // NOTE: Currently calling convention just stores the name.
     CallingConvention::new(raw_cc.name().as_str())
 }
@@ -358,7 +356,7 @@ pub fn from_bn_calling_convention<A: BNArchitecture>(
 pub fn to_bn_calling_convention<A: BNArchitecture>(
     arch: &A,
     calling_convention: &CallingConvention,
-) -> BNRef<BNCallingConvention<A>> {
+) -> BNRef<BNCallingConvention> {
     for cc in &arch.calling_conventions() {
         if cc.name().as_str() == calling_convention.name {
             return cc.clone();

@@ -148,10 +148,10 @@ impl TypeBuilder {
         self.child_type()
     }
 
-    pub fn calling_convention(&self) -> Option<Conf<Ref<CallingConvention<CoreArchitecture>>>> {
+    pub fn calling_convention(&self) -> Option<Conf<Ref<CallingConvention>>> {
         let raw_convention_confidence = unsafe { BNGetTypeBuilderCallingConvention(self.handle) };
         match raw_convention_confidence.convention.is_null() {
-            false => Some(Conf::<Ref<CallingConvention<_>>>::from_owned_raw(
+            false => Some(Conf::<Ref<CallingConvention>>::from_owned_raw(
                 raw_convention_confidence,
             )),
             true => None,
@@ -523,10 +523,10 @@ impl Type {
         self.child_type()
     }
 
-    pub fn calling_convention(&self) -> Option<Conf<Ref<CallingConvention<CoreArchitecture>>>> {
+    pub fn calling_convention(&self) -> Option<Conf<Ref<CallingConvention>>> {
         let convention_confidence = unsafe { BNGetTypeCallingConvention(self.handle) };
         match convention_confidence.convention.is_null() {
-            false => Some(Conf::<Ref<CallingConvention<_>>>::from_owned_raw(
+            false => Some(Conf::<Ref<CallingConvention>>::from_owned_raw(
                 convention_confidence,
             )),
             true => None,
@@ -798,9 +798,8 @@ impl Type {
     // TODO: FunctionBuilder
     pub fn function_with_opts<
         'a,
-        A: Architecture,
         T: Into<Conf<&'a Type>>,
-        C: Into<Conf<Ref<CallingConvention<A>>>>,
+        C: Into<Conf<Ref<CallingConvention>>>,
     >(
         return_type: T,
         parameters: &[FunctionParameter],
@@ -814,7 +813,7 @@ impl Type {
         let mut pure = Conf::new(false, MIN_CONFIDENCE).into();
 
         let mut owned_raw_calling_convention =
-            Conf::<Ref<CallingConvention<A>>>::into_owned_raw(&calling_convention.into());
+            Conf::<Ref<CallingConvention>>::into_owned_raw(&calling_convention.into());
 
         let mut stack_adjust = stack_adjust.into();
         let mut raw_parameters = parameters

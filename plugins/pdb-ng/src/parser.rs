@@ -48,11 +48,11 @@ pub struct PDBParserInstance<'a, S: Source<'a> + 'a> {
     /// Default arch of self.bv
     pub(crate) arch: CoreArchitecture,
     /// Default calling convention for self.arch
-    pub(crate) default_cc: Ref<CallingConvention<CoreArchitecture>>,
+    pub(crate) default_cc: Ref<CallingConvention>,
     /// Thiscall calling convention for self.bv, or default_cc if we can't find one
-    pub(crate) thiscall_cc: Ref<CallingConvention<CoreArchitecture>>,
+    pub(crate) thiscall_cc: Ref<CallingConvention>,
     /// Cdecl calling convention for self.bv, or default_cc if we can't find one
-    pub(crate) cdecl_cc: Ref<CallingConvention<CoreArchitecture>>,
+    pub(crate) cdecl_cc: Ref<CallingConvention>,
     /// Default platform of self.bv
     pub(crate) platform: Ref<Platform>,
     /// pdb-rs structure for making lifetime hell a real place

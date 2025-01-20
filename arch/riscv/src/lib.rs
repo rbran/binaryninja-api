@@ -2670,9 +2670,9 @@ impl<D: 'static + RiscVDisassembler + Send + Sync> RiscVCC<D> {
     }
 }
 
-impl<D: 'static + RiscVDisassembler + Send + Sync> CallingConventionBase for RiscVCC<D> {
-    type Arch = RiscVArch<D>;
-
+impl<D: 'static + RiscVDisassembler + Send + Sync> CallingConventionBase<RiscVArch<D>>
+    for RiscVCC<D>
+{
     fn caller_saved_registers(&self) -> Vec<Register<D>> {
         let mut regs = Vec::with_capacity(36);
         let int_reg_count = <D::RegFile as RegFile>::int_reg_count();
