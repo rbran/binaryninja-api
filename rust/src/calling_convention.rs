@@ -535,6 +535,35 @@ impl Debug for CallingConvention {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CallingConvention")
             .field("name", &self.name())
+            .field("caller_saved_registers", &self.caller_saved_registers())
+            .field("callee_saved_registers", &self.callee_saved_registers())
+            .field("int_arg_registers", &self.int_arg_registers())
+            .field("float_arg_registers", &self.float_arg_registers())
+            .field(
+                "arg_registers_shared_index",
+                &self.arg_registers_shared_index(),
+            )
+            .field(
+                "reserved_stack_space_for_arg_registers",
+                &self.reserved_stack_space_for_arg_registers(),
+            )
+            .field("stack_adjusted_on_return", &self.stack_adjusted_on_return())
+            .field(
+                "is_eligible_for_heuristics",
+                &self.is_eligible_for_heuristics(),
+            )
+            .field("return_int_reg", &self.return_int_reg())
+            .field("return_hi_int_reg", &self.return_hi_int_reg())
+            .field("return_float_reg", &self.return_float_reg())
+            .field("global_pointer_reg", &self.global_pointer_reg())
+            .field(
+                "implicitly_defined_registers",
+                &self.implicitly_defined_registers(),
+            )
+            .field(
+                "are_argument_registers_used_for_var_args",
+                &self.are_argument_registers_used_for_var_args(),
+            )
             .finish()
     }
 }
