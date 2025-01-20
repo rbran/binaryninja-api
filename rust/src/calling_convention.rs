@@ -579,11 +579,12 @@ impl CallingConventionBase<CoreArchitecture> for CallingConvention {
         unsafe {
             let mut count = 0;
             let regs = BNGetCallerSavedRegisters(self.handle, &mut count);
+            let arch = self.arch();
 
             let res = std::slice::from_raw_parts(regs, count)
                 .iter()
                 .map(|&id| RegisterId(id))
-                .filter_map(|r| self.arch().register_from_id(r))
+                .filter_map(|r| arch.register_from_id(r))
                 .collect();
 
             BNFreeRegisterList(regs);
@@ -596,11 +597,12 @@ impl CallingConventionBase<CoreArchitecture> for CallingConvention {
         unsafe {
             let mut count = 0;
             let regs = BNGetCalleeSavedRegisters(self.handle, &mut count);
+            let arch = self.arch();
 
             let res = std::slice::from_raw_parts(regs, count)
                 .iter()
                 .map(|&id| RegisterId(id))
-                .filter_map(|r| self.arch().register_from_id(r))
+                .filter_map(|r| arch.register_from_id(r))
                 .collect();
 
             BNFreeRegisterList(regs);
@@ -613,11 +615,12 @@ impl CallingConventionBase<CoreArchitecture> for CallingConvention {
         unsafe {
             let mut count = 0;
             let regs = BNGetIntegerArgumentRegisters(self.handle, &mut count);
+            let arch = self.arch();
 
             let res = std::slice::from_raw_parts(regs, count)
                 .iter()
                 .map(|&id| RegisterId(id))
-                .filter_map(|r| self.arch().register_from_id(r))
+                .filter_map(|r| arch.register_from_id(r))
                 .collect();
 
             BNFreeRegisterList(regs);
@@ -630,11 +633,12 @@ impl CallingConventionBase<CoreArchitecture> for CallingConvention {
         unsafe {
             let mut count = 0;
             let regs = BNGetFloatArgumentRegisters(self.handle, &mut count);
+            let arch = self.arch();
 
             let res = std::slice::from_raw_parts(regs, count)
                 .iter()
                 .map(|&id| RegisterId(id))
-                .filter_map(|r| self.arch().register_from_id(r))
+                .filter_map(|r| arch.register_from_id(r))
                 .collect();
 
             BNFreeRegisterList(regs);
