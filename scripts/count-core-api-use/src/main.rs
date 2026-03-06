@@ -120,13 +120,10 @@ fn count_c(functions_order: &[String]) -> Vec<usize> {
 
         // check if the file use functions from coreapi
         parsed.get_entity().visit_children(|entity, _parent| {
-            // only function calls, resolved or not
-            if matches!(
-                entity.get_kind(),
-                EntityKind::CallExpr | EntityKind::OverloadedDeclRef
-            ) {
-                if let Some(name) = entity.get_name() {
-                    functions.entry(name).and_modify(|x| *x += 1);
+            // all, except function declarations
+            if let Some(entry) = entity.get_name().and_then(|x| functions.get_mut(&x)) {
+                if !matches!(entity.get_kind(), EntityKind::FunctionDecl) {
+                    *entry += 1;
                 }
             }
             clang::EntityVisitResult::Recurse
@@ -209,7 +206,7 @@ fn count_rust(functions_order: &[String]) -> Vec<usize> {
     };
 
     // parse and check all the .rs files
-    for file in get_all_files(Path::new("../../rust"), "rs") {
+    for file in get_all_files(Path::new("../../rust/src"), "rs") {
         let file_content = std::fs::read_to_string(file).expect("Unable to read rust file");
 
         let syn = syn::parse_file(&file_content).expect("Unable to parse rust file");
