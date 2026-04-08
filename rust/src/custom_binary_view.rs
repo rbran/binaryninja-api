@@ -458,9 +458,8 @@ pub struct CustomViewBuilder<'a, T: CustomBinaryViewType + ?Sized> {
 pub unsafe trait CustomBinaryView: 'static + BinaryViewBase + Sync + Sized {
     type Args: Send;
 
-    fn new(handle: &BinaryView, args: &Self::Args) -> Result<Self>;
-    fn init(&mut self, args: Self::Args) -> Result<()>;
-    fn process(&self) -> Result<()>;
+    fn new(handle: &BinaryView, args: Self::Args) -> Result<Self>;
+    fn init(&mut self) -> Result<()>;
     fn on_after_snapshot_data_applied(&mut self) {}
 }
 
@@ -536,69 +535,13 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             return Err(());
         }
 
-        // struct representing the context of a BNCustomBinaryView. Can be safely
-        // dropped at any moment.
-        struct CustomViewContext<V>
-        where
-            V: CustomBinaryView,
-        {
-            raw_handle: *mut BNBinaryView,
-            state: CustomViewContextState<V>,
-        }
-
-        enum CustomViewContextState<V>
-        where
-            V: CustomBinaryView,
-        {
-            Uninitialized { args: V::Args },
-            Initialized { view: V },
-            // dummy state, used as a helper to change states, only happen if the
-            // `new` or `init` function fails.
-            None,
-        }
-
-        impl<V: CustomBinaryView> CustomViewContext<V> {
-            fn assume_init_ref(&self) -> &V {
-                let CustomViewContextState::Initialized { view } = &self.state else {
-                    panic!("CustomViewContextState in invalid state");
-                };
-                view
-            }
-        }
-
         extern "C" fn cb_init<V>(ctxt: *mut c_void) -> bool
         where
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::init", unsafe {
-                let context = &mut *(ctxt as *mut CustomViewContext<V>);
-                let handle = BinaryView::ref_from_raw(context.raw_handle);
-
-                // take the uninitialized state and use the args to call init
-                let mut state = CustomViewContextState::None;
-                core::mem::swap(&mut context.state, &mut state);
-                let CustomViewContextState::Uninitialized { args } = state else {
-                    panic!("CustomViewContextState in invalid state");
-                };
-                match V::new(handle.as_ref(), &args) {
-                    Ok(mut view) => match view.init(args) {
-                        Ok(_) => {
-                            // put the initialized state
-                            context.state = CustomViewContextState::Initialized { view };
-                            context.assume_init_ref().process().is_ok()
-                        }
-                        Err(_) => {
-                            tracing::error!(
-                                "CustomBinaryView::init failed; custom view returned Err"
-                            );
-                            false
-                        }
-                    },
-                    Err(_) => {
-                        tracing::error!("CustomBinaryView::new failed; custom view returned Err");
-                        false
-                    }
-                }
+                let context = &mut *(ctxt as *mut Option<V>);
+                context.as_mut().unwrap().init().is_ok()
             })
         }
 
@@ -607,8 +550,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::onAfterSnapshotDataApplied", unsafe {
-                let context = &mut *(ctxt as *mut CustomViewContext<V>);
-                if let CustomViewContextState::Initialized { view } = &mut context.state {
+                let context = &mut *(ctxt as *mut Option<V>);
+                if let Some(view) = context {
                     view.on_after_snapshot_data_applied();
                 }
             })
@@ -619,10 +562,10 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::freeObject", unsafe {
-                let context = ctxt as *mut CustomViewContext<V>;
+                let context = ctxt as *mut Option<V>;
                 let context = Box::from_raw(context);
 
-                if context.raw_handle.is_null() {
+                if context.is_none() {
                     // being called here is essentially a guarantee that BNCreateBinaryViewOfType
                     // is above above us on the call stack somewhere -- no matter what we do, a crash
                     // is pretty much certain at this point.
@@ -640,23 +583,6 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
                     tracing::error!(
                       "BinaryViewBase::freeObject called on partially initialized object! crash imminent!"
                     );
-                } else if matches!(
-                    &context.state,
-                    CustomViewContextState::None | CustomViewContextState::Uninitialized { .. }
-                ) {
-                    // making it here means somebody went out of their way to leak a BinaryView
-                    // after calling BNCreateCustomView and never gave the BNBinaryView handle
-                    // to the core (which would have called cb_init)
-                    //
-                    // the result is a half-initialized BinaryView that the core will happily hand out
-                    // references to via BNGetFileViewofType even though it was never initialized
-                    // all the way.
-                    //
-                    // TODO update when this corner case gets fixed in the core?
-                    //
-                    // we can't do anything to prevent this, but we can at least have the crash
-                    // not be our fault.
-                    tracing::error!("BinaryViewBase::freeObject called on leaked/never initialized custom view!");
                 }
             })
         }
@@ -671,9 +597,9 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::read", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
+                let context = &*(ctxt as *mut Option<V>);
                 let dest = slice::from_raw_parts_mut(dest as *mut u8, len);
-                context.assume_init_ref().read(dest, offset)
+                context.as_ref().unwrap().read(dest, offset)
             })
         }
 
@@ -687,9 +613,9 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::write", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
+                let context = &*(ctxt as *mut Option<V>);
                 let src = slice::from_raw_parts(src as *const u8, len);
-                context.assume_init_ref().write(offset, src)
+                context.as_ref().unwrap().write(offset, src)
             })
         }
 
@@ -703,9 +629,9 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::insert", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
+                let context = &*(ctxt as *mut Option<V>);
                 let src = slice::from_raw_parts(src as *const u8, len);
-                context.assume_init_ref().insert(offset, src)
+                context.as_ref().unwrap().insert(offset, src)
             })
         }
 
@@ -714,8 +640,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::remove", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().remove(offset, len as usize)
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().remove(offset, len as usize)
             })
         }
 
@@ -724,8 +650,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::modification_status", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().modification_status(offset)
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().modification_status(offset)
             })
         }
 
@@ -734,8 +660,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::offset_valid", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().offset_valid(offset)
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().offset_valid(offset)
             })
         }
 
@@ -744,8 +670,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::readable", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().offset_readable(offset)
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().offset_readable(offset)
             })
         }
 
@@ -754,8 +680,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::writable", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().offset_writable(offset)
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().offset_writable(offset)
             })
         }
 
@@ -764,8 +690,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::offset_executable", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().offset_executable(offset)
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().offset_executable(offset)
             })
         }
 
@@ -774,8 +700,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::offset_backed_by_file", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().offset_backed_by_file(offset)
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().offset_backed_by_file(offset)
             })
         }
 
@@ -784,8 +710,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::next_valid_offset_after", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().next_valid_offset_after(offset)
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().next_valid_offset_after(offset)
             })
         }
 
@@ -794,8 +720,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::start", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().start()
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().start()
             })
         }
 
@@ -804,8 +730,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::len", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().len()
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().len()
             })
         }
 
@@ -814,8 +740,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::entry_point", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().entry_point()
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().entry_point()
             })
         }
 
@@ -824,8 +750,8 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::executable", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
-                context.assume_init_ref().executable()
+                let context = &*(ctxt as *mut Option<V>);
+                context.as_ref().unwrap().executable()
             })
         }
 
@@ -834,9 +760,9 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::default_endianness", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
+                let context = &*(ctxt as *mut Option<V>);
 
-                context.assume_init_ref().default_endianness()
+                context.as_ref().unwrap().default_endianness()
             })
         }
 
@@ -845,9 +771,9 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::relocatable", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
+                let context = &*(ctxt as *mut Option<V>);
 
-                context.assume_init_ref().relocatable()
+                context.as_ref().unwrap().relocatable()
             })
         }
 
@@ -856,9 +782,9 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::address_size", unsafe {
-                let context = &*(ctxt as *mut CustomViewContext<V>);
+                let context = &*(ctxt as *mut Option<V>);
 
-                context.assume_init_ref().address_size()
+                context.as_ref().unwrap().address_size()
             })
         }
 
@@ -867,18 +793,12 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
             V: CustomBinaryView,
         {
             ffi_wrap!("BinaryViewBase::save", unsafe {
-                let _context = &*(ctxt as *mut CustomViewContext<V>);
+                let _context = &*(ctxt as *mut Option<V>);
                 false
             })
         }
 
-        let ctxt = Box::new(CustomViewContext::<V> {
-            raw_handle: ptr::null_mut(),
-            state: CustomViewContextState::Uninitialized { args: view_args },
-        });
-
-        let ctxt = Box::into_raw(ctxt);
-
+        let ctxt = Box::into_raw(Box::new(None));
         let mut bn_obj = BNCustomBinaryView {
             context: ctxt as *mut _,
             init: Some(cb_init::<V>),
@@ -919,9 +839,10 @@ impl<'a, T: CustomBinaryViewType> CustomViewBuilder<'a, T> {
                 !res.is_null(),
                 "BNCreateCustomBinaryView cannot return null"
             );
-            (*ctxt).raw_handle = res;
+            let handle = BinaryView::ref_from_raw(res);
+            (*ctxt) = Some(V::new(&handle, view_args)?);
             Ok(CustomView {
-                handle: BinaryView::ref_from_raw(res),
+                handle,
                 _builder: PhantomData,
             })
         }
