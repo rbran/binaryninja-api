@@ -3828,6 +3828,11 @@ bool MachoViewType::IsTypeValidForData(BinaryView* data)
 
 uint64_t MachoViewType::ParseHeaders(BinaryView* data, uint64_t imageOffset, mach_header_64& ident, Ref<Architecture>* arch, Ref<Platform>* plat, string& errorMsg)
 {
+	if (data->GetLength() < 4)
+	{
+		errorMsg = "signature too small";
+		return 0;
+	}
 	DataBuffer sig = data->ReadBuffer(imageOffset, 4);
 	uint32_t magic = *(uint32_t*)sig.GetData();
 	if ((sig.GetLength() != 4) || !(magic == MH_CIGAM || magic == MH_CIGAM_64 || magic == MH_MAGIC || magic == MH_MAGIC_64))
