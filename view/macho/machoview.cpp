@@ -3338,7 +3338,11 @@ void MachoView::ParseSymbolTable(BinaryReader& reader, MachOHeader& header, cons
 			if (sym.n_strx >= symtab.strsize || ((sym.n_type & N_TYPE) == N_INDR))
 				continue;
 
-			string symbol((char*)header.stringList.GetDataAt(sym.n_strx));
+			size_t symbol_max_len = strnlen(
+				(char*)header.stringList.GetDataAt(sym.n_strx),
+				header.stringList.GetLength() - sym.n_strx
+			);
+			string symbol((char*)header.stringList.GetDataAt(sym.n_strx), symbol_max_len);
 			m_symbols.push_back(symbol);
 			//otool ignores symbols that end with ".o", startwith "ltmp" or are "gcc_compiled." so do we
 			if (symbol == "gcc_compiled." ||
