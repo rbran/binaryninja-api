@@ -3029,7 +3029,7 @@ void MachoView::ParseRebaseTable(BinaryReader& reader, MachOHeader& header, uint
 				address += immediate * m_addressSize;
 				break;
 			case RebaseOpcodeDoRebaseImmediateTimes:
-				count = immediate;
+				count = immediate % 0x1000;
 				for (uint64_t j = 0; j < count; ++j)
 				{
 					m_logger->LogTraceF("Rebasing address {:#x}", address);
@@ -3049,7 +3049,7 @@ void MachoView::ParseRebaseTable(BinaryReader& reader, MachOHeader& header, uint
 				}
 				break;
 			case RebaseOpcodeDoRebaseUlebTimes:
-				count = readLEB128(table, tableSize, i);
+				count = readLEB128(table, tableSize, i) % 0x1000;
 				for (uint64_t j = 0; j < count; ++j)
 				{
 					m_logger->LogTraceF("Rebasing address {:#x}", address);
@@ -3085,7 +3085,7 @@ void MachoView::ParseRebaseTable(BinaryReader& reader, MachOHeader& header, uint
 				address += readLEB128(table, tableSize, i) + m_addressSize;
 				break;
 			case RebaseOpcodeDoRebaseUlebTimesSkippingUleb:
-				count = readLEB128(table, tableSize, i);
+				count = readLEB128(table, tableSize, i) % 0x1000;
 				skip = readLEB128(table, tableSize, i);
 				for (uint64_t j = 0; j < count; ++j)
 				{
