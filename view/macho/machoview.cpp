@@ -3224,7 +3224,7 @@ void MachoView::ParseDynamicTable(BinaryReader& reader, MachOHeader& header, BNS
 					if (name == NULL)
 						throw MachoFormatException();
 
-					uint64_t count = readLEB128(table, tableSize, i);
+					uint64_t count = readLEB128(table, tableSize, i) % 0x1000;
 					uint64_t skip = readLEB128(table, tableSize, i);
 					for (; count > 0; count--)
 					{
