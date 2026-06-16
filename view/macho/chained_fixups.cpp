@@ -246,7 +246,8 @@ ImportEntry ReadChainedImport32(BinaryReader& reader, std::span<const char> symb
 	reader.Read(&import, sizeof(import));
 	std::string_view view;
 	if (symbolData.size() > import.name_offset) {
-		view = std::string_view(&symbolData[import.name_offset]);
+		auto len = strnlen(&symbolData[import.name_offset], symbolData.size() - import.name_offset);
+		view = std::string_view(&symbolData[import.name_offset], len);
 	} else {
 		view = std::string_view();
 	}
