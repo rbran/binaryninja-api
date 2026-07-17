@@ -13,4 +13,4 @@ msp430-asm = "^0.2"
 tracing = "0.1"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "lib"]
