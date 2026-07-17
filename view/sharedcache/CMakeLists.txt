@@ -35,8 +35,11 @@ add_subdirectory(core)
 add_subdirectory(api)
 add_subdirectory(workflow)
 
-add_library(sharedcache SHARED
-    HeadlessPlugin.cpp)
+if(DEMO)
+    add_library(sharedcache STATIC HeadlessPlugin.cpp)
+else()
+    add_library(sharedcache SHARED HeadlessPlugin.cpp)
+endif()
 
 
 if(BN_INTERNAL_BUILD)

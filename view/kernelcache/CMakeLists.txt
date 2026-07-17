@@ -34,9 +34,11 @@ add_subdirectory(core)
 add_subdirectory(api)
 add_subdirectory(workflow)
 
-add_library(kernelcache SHARED
-    HeadlessPlugin.cpp)
-
+if(DEMO)
+    add_library(kernelcache STATIC HeadlessPlugin.cpp)
+else()
+    add_library(kernelcache SHARED HeadlessPlugin.cpp)
+endif()
 
 if(BN_INTERNAL_BUILD)
     set_target_properties(kernelcache PROPERTIES
