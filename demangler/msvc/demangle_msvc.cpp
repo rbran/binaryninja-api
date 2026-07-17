@@ -16,7 +16,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 
 #include "demangle_msvc.h"
-#include "unicode.h"
+//#include "unicode.h"
 #include "base/unicode.h"
 #include <limits>
 #include <memory>
@@ -1559,7 +1559,7 @@ DemangledTypeNode Demangle::DemangleString(NameList& symbolName)
 		}
 	}
 	symbolName.clear();
-	symbolName.push_back(MakeNameSegment(fmt::bnformat("{}\"{}\"{}", literalPrefix, name, truncated ? "..." : "")));
+	symbolName.push_back(MakeNameSegment(fmt::format("{}\"{}\"{}", literalPrefix, name, truncated ? "..." : "")));
 	return type;
 }
 
