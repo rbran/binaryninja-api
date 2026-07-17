@@ -3210,7 +3210,7 @@ namespace
 		else
 			return false;
 
-		thread_local DemangleGNU3 demangle(platform, encoding);
+		thread_local ::DemangleGNU3 demangle(platform, encoding);
 		demangle.Reset(platform, encoding);
 		try
 		{
